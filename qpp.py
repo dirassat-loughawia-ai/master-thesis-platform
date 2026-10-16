@@ -21,29 +21,47 @@ st.set_page_config(
     layout="wide"
 )
 
+# معرّف ملف جداول جوجل الموحد
+SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
+
 # --- إعداد الاتصال بجداول جوجل السحابية ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error("⚠️ يرجى التأكد من ضبط إعدادات Secrets للاتصال بـ Google Sheets.")
+    conn = None
 
 def load_data_from_sheet(worksheet_name):
-    """جلب البيانات من ورقة عمل محددة داخل الملف الموحد"""
+    """جلب البيانات من ورقة عمل محددة مع آلية قراءة معززة واحتياطية"""
+    # المحاولة الأولى: عبر st.connection
+    if conn is not None:
+        try:
+            df = conn.read(worksheet=worksheet_name, ttl=0)
+            if not df.empty:
+                return df.fillna("").astype(str)
+        except Exception:
+            pass
+
+    # المحاولة الثانية (الاحتياطية المضمونة): القراءة المباشرة عبر محرك gviz/tq CSV
     try:
-        df = conn.read(worksheet=worksheet_name, ttl=0) # ttl=0 لقراءة التحديثات اللحظية
-        df = df.fillna("").astype(str)
-        return df
+        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={worksheet_name}"
+        df = pd.read_csv(url)
+        return df.fillna("").astype(str)
     except Exception as e:
+        st.error(f"⚠️ يتعذر جلب البيانات لجدول '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 def save_data_to_sheet(df, worksheet_name):
     """حفظ وتحديث البيانات مباشرة في ورقة العمل المحددة"""
     try:
-        df_to_save = df.copy().fillna("").astype(str)
-        conn.update(worksheet=worksheet_name, data=df_to_save)
-        return True
+        if conn is not None:
+            df_to_save = df.copy().fillna("").astype(str)
+            conn.update(worksheet=worksheet_name, data=df_to_save)
+            return True
+        else:
+            st.error("خطأ: الاتصال بالسيرفر السحابي غير متصل للكتابة.")
+            return False
     except Exception as e:
-        st.error(f"خطأ في الاتصال بالسيرفر السحابي: {e}")
+        st.error(f"خطأ في الاتصال بالسيرفر السحابي عند الحفظ: {e}")
         return False
 
 # --- عداد الزوار التفاعلي السحابي ---
@@ -125,7 +143,7 @@ SHEET_TITLES = "العناوين المسجلة"
 SHEET_MOD_REQUESTS = "طلبات التعديل"
 SHEET_FINAL_REGISTRATIONS = "التسجيلات النهائية"
 
-ICON1_PATH = "ICON1.png" if os.path.exists("ICON1.png") else ("ICON1.jpg" if os.path.exists("ICON1.jpg") else None)
+ICON1_PATH = "ICON1.png" if os.path.exists("ICON1.png") else ("ICON1.jpg" if os.path.exists("ICON2.jpg") else None)
 ICON2_PATH = "ICON2.png" if os.path.exists("ICON2.png") else ("ICON2.jpg" if os.path.exists("ICON2.jpg") else None)
 
 SPECIALTIES = ["لسانيات عامة", "أدب عربي حديث ومعاصر", "نقد حديث ومعاصر", "أدب شعبي"]
@@ -278,7 +296,7 @@ with tab_teacher:
         else:
             current_teacher_name = st.session_state.current_teacher
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-            teacher_registrations_count = len(df_final[df_final["اسم الأستاذ"] == current_teacher_name]) if not df_final.empty else 0
+            teacher_registrations_count = len(df_final[df_final["اسم الأستاذ"] == current_teacher_name]) if not df_final.empty and "اسم الأستاذ" in df_final.columns else 0
 
             st.subheader(f"مذكرات الأستاذ: {current_teacher_name} (المسجلة حالياً: {teacher_registrations_count} من 3)")
 
@@ -289,7 +307,6 @@ with tab_teacher:
                 df_students = load_data_from_sheet(SHEET_STUDENTS)
                 students_options = []
 
-                # الربط الدقيق مع أعمدة ورقة قوائم الطلبة الحالية
                 spec_col_map = {
                     "لسانيات عامة": ("تخصص_لسانيات_عامة", "رقم_تسجيل_لسانيات_عامة"),
                     "أدب عربي حديث ومعاصر": ("تخصص_أدب_حديث_ومعاصر", "رقم_تسجيل_أدب_حديث_ومعاصر"),
@@ -310,7 +327,6 @@ with tab_teacher:
                 with col_s1: st1 = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_options, key="st1_v10")
                 with col_s2: st2 = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + students_options, key="st2_v10")
 
-                # جلب العناوين المتاحة
                 df_titles = load_data_from_sheet(SHEET_TITLES)
                 available_titles = []
                 if not df_titles.empty and "عنوان المذكرة" in df_titles.columns and "الأستاذ" in df_titles.columns:
@@ -318,7 +334,6 @@ with tab_teacher:
                         if str(r["الأستاذ"]).strip() == current_teacher_name.strip():
                             available_titles.append(str(r["عنوان المذكرة"]))
                 
-                # إتاحة كتابة عنوان جديد إذا كان الجدول فارغاً
                 if available_titles:
                     selected_title_dropdown = st.selectbox("اختر عنوان المذكرة الخاصة بك:", ["-- اختر العنوان --"] + available_titles, key="sb_title_v10")
                 else:
@@ -353,7 +368,7 @@ with tab_teacher:
                             time.sleep(1.5)
                             st.rerun()
 
-    # --- 1.3 العناوين المسجلة وتحديثها السحابي ---
+    # --- 1.3 العناوين المسجلة ---
     with t_sub_tab_registered:
         if st.session_state.teacher_logged_in:
             teacher_curr = st.session_state.current_teacher
@@ -419,7 +434,7 @@ with tab_spec_admin:
         spec_list = df_admins["التخصص"].dropna().tolist()
         col_a1, col_a2 = st.columns(2)
         with col_a1:
-            selected_admin_spec = st.selectbox("اختر التخصص المساد إدارته:", ["-- اختر التخصص --"] + spec_list, key="sb_admin_spec")
+            selected_admin_spec = st.selectbox("اختر التخصص المراد إدارته:", ["-- اختر التخصص --"] + spec_list, key="sb_admin_spec")
         with col_a2:
             admin_pass = st.text_input("كلمة مرور مسؤول التخصص:", type="password", key="inp_admin_pass")
             
