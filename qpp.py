@@ -121,9 +121,9 @@ def get_and_increment_visitor_count():
 
 visitor_count = get_and_increment_visitor_count()
 
-# --- ضبط الخط العربي المرفق (Amiri-Regular.ttf) ---
+# --- ضبط الخط العربي المرفق (Amiri.ttf) ---
 def setup_arabic_font():
-    font_file = "Amiri-Regular.ttf"
+    font_file = "Amiri.ttf"
     
     if os.path.exists(font_file):
         try:
