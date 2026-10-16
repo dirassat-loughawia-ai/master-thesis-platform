@@ -24,15 +24,25 @@ st.set_page_config(
 # معرّف ملف جداول جوجل الموحد
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
 
+# قاموس المعرفات الفريدة (GID) لتبويبات الشيت لتفادي أخطاء المسافات والأسماء العربية
+SHEET_GIDS = {
+    "قائمة الأساتذة": "0",
+    "كلمات مرور المسؤولين": "1843105785",
+    "قوائم الطلبة": "1198661605",
+    "العناوين المسجلة": "1537233481",
+    "طلبات التعديل": "823902143",
+    "التسجيلات النهائية": "2054238804"
+}
+
 # --- إعداد الاتصال بجداول جوجل السحابية ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
+except Exception:
     conn = None
 
 def load_data_from_sheet(worksheet_name):
-    """جلب البيانات من ورقة عمل محددة مع آلية قراءة معززة واحتياطية"""
-    # المحاولة الأولى: عبر st.connection
+    """جلب البيانات باستخدام معرّف التبويب الرقمي (GID) لضمان خلو الرابط من المسافات والحروف العربية"""
+    # 1. المحاولة الأولى: عبر st.connection
     if conn is not None:
         try:
             df = conn.read(worksheet=worksheet_name, ttl=0)
@@ -41,9 +51,10 @@ def load_data_from_sheet(worksheet_name):
         except Exception:
             pass
 
-    # المحاولة الثانية (الاحتياطية المضمونة): القراءة المباشرة عبر محرك gviz/tq CSV
+    # 2. المحاولة الثانية الاحتياطية المضمونة 100%: عبر رقم GID الصافي
     try:
-        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={worksheet_name}"
+        gid = SHEET_GIDS.get(worksheet_name, "0")
+        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={gid}"
         df = pd.read_csv(url)
         return df.fillna("").astype(str)
     except Exception as e:
