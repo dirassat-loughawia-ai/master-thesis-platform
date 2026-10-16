@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# معرّف ملف جداول جوجل ورابط تطبيق الويب لحفظ البيانات
+# معرّف ملف جداول جوجل ورابط تطبيق الويب لحفظ البيانات سحابياً
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyM9CVCiTLW5dcPZp13N4moSCpt_to-kc7o8ZPQCQPX3AjU_SV0fLXm7wNT5odtkWoyZA/exec"
 
@@ -110,6 +110,7 @@ st.markdown("""
         border-radius: 8px;
         color: #1e293b;
         font-weight: 600;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .stTabs [aria-selected="true"] {
         background-color: #1e3a8a !important;
@@ -122,6 +123,7 @@ st.markdown("""
         border-radius: 16px;
         text-align: center;
         margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(15, 23, 42, 0.2);
     }
     .visitor-badge {
         background-color: #ffffff;
@@ -131,6 +133,7 @@ st.markdown("""
         font-weight: bold;
         display: inline-block;
         margin-top: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     .status-msg-success {
         background-color: #f0fdf4;
@@ -156,7 +159,7 @@ SHEET_FINAL_REGISTRATIONS = "التسجيلات النهائية"
 ICON1_PATH = "ICON1.png" if os.path.exists("ICON1.png") else ("ICON1.jpg" if os.path.exists("ICON1.jpg") else None)
 ICON2_PATH = "ICON2.png" if os.path.exists("ICON2.png") else ("ICON2.jpg" if os.path.exists("ICON2.jpg") else None)
 
-SPECIALTIES = ["لسانيات عامة", "أدب عربي حديث ومعاصر", "نقد حديث ومعاصر", "أدب شعبي"]
+SPECIALTIES = ["لسانيات عامة", "أدب عربي حديث ومعاصر", "نقد حديث معاصر", "أدب شعبي"]
 MASTER_SUPER_PASS = "0000"
 
 def setup_arabic_font():
@@ -221,11 +224,23 @@ def generate_pdf_document(form_num, teacher_name, specialty, student1_info, stud
     can.drawCentredString(center_x, rect_y + 26, reshape_arabic(f"« {title} »"))
 
     y_st = page_height - 400
-    can.setFont(ARABIC_FONT_BOLD, 11)
-    can.drawRightString(page_width - 50, y_st, reshape_arabic(f"الطالب الأول: {student1_info}"))
-    can.drawRightString(page_width - 50, y_st - 30, reshape_arabic(f"الطالب الثاني: {student2_info}"))
+    st1_p = str(student1_info).split(" - ")
+    st1_n = st1_p[0] if len(st1_p) > 0 else str(student1_info)
+    st1_r = st1_p[1] if len(st1_p) > 1 else ""
+    st1_full = f"الطالب الأول: {st1_n} ({st1_r})" if st1_r else f"الطالب الأول: {st1_n}"
 
-    y_sig = y_st - 110
+    can.setFont(ARABIC_FONT_BOLD, 11)
+    can.drawRightString(page_width - 50, y_st, reshape_arabic(st1_full))
+
+    y_st2 = y_st - 30
+    st2_p = str(student2_info).split(" - ")
+    st2_n = st2_p[0] if len(st2_p) > 0 else str(student2_info)
+    st2_r = st2_p[1] if len(st2_p) > 1 else ""
+    st2_full = f"الطالب الثاني: {st2_n} ({st2_r})" if st2_r else f"الطالب الثاني: {st2_n}"
+
+    can.drawRightString(page_width - 50, y_st2, reshape_arabic(st2_full))
+
+    y_sig = y_st2 - 80
     can.drawRightString(page_width - 60, y_sig, reshape_arabic("إمضاء المشرف:"))
     can.drawString(60, y_sig, reshape_arabic("مسؤول الشعبة:"))
 
@@ -274,22 +289,19 @@ with tab_teacher:
         if st.session_state.teacher_logged_in:
             st.markdown(f"""
             <div class="status-msg-success">
-                أستاذنا المحترم ({st.session_state.current_teacher}) لقد تم تسجيل الدخول بنجاح! انتقل الآن لتبويب "تسجيل مذكرة ماستر".
+                أستاذنا المحترم ({st.session_state.current_teacher}) لقد تم تسجيل الدخول الى حسابكم بنجاح.. انتقل الان الى اللسان "تسجيل مذكرة ماستر".
             </div>
             """, unsafe_allow_html=True)
             if st.button("🔴 تسجيل الخروج", key="btn_logout_teacher_v10"):
-                st.session_state.teacher_logged_in = False
-                st.session_state.current_teacher = ""
+                st.session_state.clear()
                 st.rerun()
         else:
             name_col = None
             pass_col = None
             if not df_teachers.empty:
                 for c in df_teachers.columns:
-                    if "الاسم" in c or "اللقب" in c:
-                        name_col = c
-                    if "كلمة" in c or "المرور" in c:
-                        pass_col = c
+                    if "الاسم" in c or "اللقب" in c: name_col = c
+                    if "كلمة" in c or "المرور" in c: pass_col = c
             
             if df_teachers.size > 0 and name_col:
                 teacher_list = df_teachers[name_col].dropna().unique().tolist()
@@ -302,167 +314,264 @@ with tab_teacher:
                         if str(input_pass) == MASTER_SUPER_PASS or (len(real_pass) > 0 and str(real_pass[0]) == str(input_pass)):
                             st.session_state.teacher_logged_in = True
                             st.session_state.current_teacher = selected_teacher
+                            st.session_state.saved_successfully = False
                             st.rerun()
                         else:
                             st.error("❌ كلمة المرور غير صحيحة!")
-            else:
-                st.warning("⚠️ متعذر تحميل قائمة الأساتذة من الشيت.")
+                    else:
+                        st.warning("⚠️ يرجى اختيار الاسم أولاً.")
 
-    # --- 1.2 تسجيل مذكرة جديدة ---
+    # --- 1.2 تسجيل مذكرة جديدة (مع شاشة النجاح وتعطيل زر الحفظ لتفادي التكرار) ---
     with t_sub_tab2:
         if not st.session_state.teacher_logged_in:
             st.info("⚠️ يرجى تسجيل الدخول أولاً من لسان 'الدخول إلى حسابي'.")
         else:
             current_teacher_name = st.session_state.current_teacher
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-            teacher_registrations_count = len(df_final[df_final["اسم الأستاذ"] == current_teacher_name]) if not df_final.empty and "اسم الأستاذ" in df_final.columns else 0
-
-            st.subheader(f"مذكرات الأستاذ: {current_teacher_name} (المسجلة حالياً: {teacher_registrations_count} من 3)")
-
-            if teacher_registrations_count >= 3:
-                st.error("❌ عذراً، لقد استوفيت الحد الأقصى المسموح به لتسجيل المذكرات (03 مذكرات).")
-            else:
-                selected_spec = st.selectbox("اختر التخصص:", SPECIALTIES, key="sb_spec_v10")
-                df_students = load_data_from_sheet(SHEET_STUDENTS)
-                students_options = []
-
-                spec_col_map = {
-                    "لسانيات عامة": ("تخصص_لسانيات_عامة", "رقم_تسجيل_لسانيات_عامة"),
-                    "أدب عربي حديث ومعاصر": ("تخصص_أدب_حديث_ومعاصر", "رقم_تسجيل_أدب_حديث_ومعاصر"),
-                    "نقد حديث ومعاصر": ("تخصص_نقد_حديث_ومعاصر", "رقم_تسجيل_نقد_حديث_ومعاصر"),
-                    "أدب شعبي": ("تخصص_أدب_شعبي", "رقم_تسجيل_أدب_شعبي")
-                }
-
-                # 1. منع التكرار: جمع قائمة الطلاب المسجلين سابقاً في الشيت
-                registered_registered_ids = set()
-                if not df_final.empty:
-                    if "رقم تسجيل 1" in df_final.columns:
-                        registered_registered_ids.update(df_final["رقم تسجيل 1"].dropna().str.strip().tolist())
-                    if "رقم تسجيل 2" in df_final.columns:
-                        registered_registered_ids.update(df_final["رقم تسجيل 2"].dropna().str.strip().tolist())
-
-                if not df_students.empty and selected_spec in spec_col_map:
-                    name_col, reg_col = spec_col_map[selected_spec]
-                    if name_col in df_students.columns and reg_col in df_students.columns:
-                        for _, row in df_students.iterrows():
-                            s_name = str(row[name_col]).strip()
-                            s_reg = str(row[reg_col]).strip()
-                            # استبعاد الطالب إذا كان مسجلاً سابقاً
-                            if s_name and s_reg and (s_reg not in registered_registered_ids):
-                                students_options.append(f"{s_name} - {s_reg}")
-
-                col_s1, col_s2 = st.columns(2)
-                with col_s1: st1 = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_options, key="st1_v10")
-                with col_s2: st2 = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + students_options, key="st2_v10")
-
-                # 2. جلب العناوين المخصصة للأستاذ الحالي
-                df_titles = load_data_from_sheet(SHEET_TITLES)
-                available_titles = []
+            
+            # 🟢 الشاشة بعد الحفظ الناجح (تمنع الضغط المزدوج والحفظ المكرر)
+            if st.session_state.get('saved_successfully', False):
+                st.balloons()
+                st.success("أستاذنا الكريم، لقد تم -بنجاح- تسجيل مذكرتكم في قاعدة البيانات، يمكنكم الآن طباعة استمارة التسجيل، أو تسجيل مذكرة أخرى..")
                 
-                if not df_titles.empty:
-                    # تصفية الجدول للبحث عن العناوين المنسوبة للأستاذ
-                    t_col, tch_col = None, None
-                    for c in df_titles.columns:
-                        if "عنوان" in c: t_col = c
-                        if "أستاذ" in c or "الأستاذ" in c: tch_col = c
+                last_form_num = st.session_state.get('last_form_num', 1)
+                last_spec = st.session_state.get('last_spec', '')
+                last_st1 = st.session_state.get('last_st1', '')
+                last_st2 = st.session_state.get('last_st2', '')
+                last_title = st.session_state.get('last_title', '')
 
-                    if t_col and tch_col:
-                        matched = df_titles[df_titles[tch_col].str.strip() == current_teacher_name.strip()]
-                        available_titles = matched[t_col].dropna().unique().tolist()
-                    else:
-                        # دعم التوزيع الأفقي للتخصصات إذا كان الجدول مرتباً كأزواج
+                pdf_data = generate_pdf_document(last_form_num, current_teacher_name, last_spec, last_st1, last_st2, last_title)
+                
+                col_p1, col_p2 = st.columns(2)
+                with col_p1:
+                    st.download_button(
+                        label="🖨️ طباعة استمارة التسجيل (PDF)",
+                        data=pdf_data,
+                        file_name=f"استمارة_{last_form_num}_{current_teacher_name}.pdf",
+                        mime="application/pdf",
+                        key="btn_download_pdf_final_hidden_v10"
+                    )
+                with col_p2:
+                    if st.button("📝 تسجيل مذكرة أخرى", key="btn_reset_new_reg_v10"):
+                        st.session_state.saved_successfully = False
+                        st.session_state.confirmed_title = None
+                        st.rerun()
+            else:
+                teacher_registrations_count = len(df_final[df_final["اسم الأستاذ"] == current_teacher_name]) if not df_final.empty and "اسم الأستاذ" in df_final.columns else 0
+                st.subheader(f"مذكرات الأستاذ: {current_teacher_name} (المسجلة حالياً: {teacher_registrations_count} من 3)")
+
+                if teacher_registrations_count >= 3:
+                    st.error("❌ عذراً، لقد استوفيت الحد الأقصى المسموح به لتسجيل المذكرات (03 مذكرات).")
+                else:
+                    selected_spec = st.selectbox("اختر التخصص:", SPECIALTIES, key="sb_spec_v10")
+                    df_students = load_data_from_sheet(SHEET_STUDENTS)
+                    students_options = []
+
+                    spec_col_map = {
+                        "لسانيات عامة": ("تخصص_لسانيات_عامة", "رقم_تسجيل_لسانيات_عامة"),
+                        "أدب عربي حديث ومعاصر": ("تخصص_أدب_حديث_ومعاصر", "رقم_تسجيل_أدب_حديث_ومعاصر"),
+                        "نقد حديث معاصر": ("تخصص_نقد_حديث_ومعاصر", "رقم_تسجيل_نقد_حديث_ومعاصر"),
+                        "أدب شعبي": ("تخصص_أدب_شعبي", "رقم_تسجيل_أدب_شعبي")
+                    }
+
+                    if not df_students.empty and selected_spec in spec_col_map:
+                        name_col, reg_col = spec_col_map[selected_spec]
+                        if name_col in df_students.columns and reg_col in df_students.columns:
+                            for _, row in df_students.iterrows():
+                                s_name = str(row[name_col]).strip()
+                                s_reg = str(row[reg_col]).strip()
+                                if s_name and s_name != 'nan':
+                                    students_options.append(f"{s_name} - {s_reg}")
+
+                    col_s1, col_s2 = st.columns(2)
+                    with col_s1: st1 = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_options, key="st1_v10")
+                    with col_s2: st2 = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + students_options, key="st2_v10")
+
+                    same_student_error = False
+                    if st1 != "-- اختر الطالب --" and st2 != "-- لا يوجد / خيار فردي --" and st1 == st2:
+                        st.error("عذرا استاذنا الكريم لقد اخترتم الطالب نفسه في كلا الحقلين يرجى تدارك الامر")
+                        same_student_error = True
+
+                    registered_students = set()
+                    registered_regs = set()
+                    if not df_final.empty:
+                        for _, r in df_final.iterrows():
+                            if pd.notna(r.get("اسم الطالب 1")) and str(r.get("اسم الطالب 1")).strip():
+                                registered_students.add(str(r["اسم الطالب 1"]).strip())
+                                registered_regs.add(str(r.get("رقم تسجيل 1")).strip())
+                            if pd.notna(r.get("اسم الطالب 2")) and str(r.get("اسم الطالب 2")).strip():
+                                registered_students.add(str(r["اسم الطالب 2"]).strip())
+                                registered_regs.add(str(r.get("رقم تسجيل 2")).strip())
+
+                    student_conflict = False
+                    if st1 != "-- اختر الطالب --":
+                        st1_name_part = st1.split(" - ")[0].strip()
+                        st1_reg_part = st1.split(" - ")[1].strip() if " - " in st1 else ""
+                        if st1_name_part in registered_students or (st1_reg_part and st1_reg_part in registered_regs):
+                            st.error(f"❌ الطالب الأول ({st1}) مسجل بالفعل في مذكرة أخرى بالقاعدة!")
+                            student_conflict = True
+
+                    if st2 != "-- لا يوجد / خيار فردي --":
+                        st2_name_part = st2.split(" - ")[0].strip()
+                        st2_reg_part = st2.split(" - ")[1].strip() if " - " in st2 else ""
+                        if st2_name_part in registered_students or (st2_reg_part and st2_reg_part in registered_regs):
+                            st.error(f"❌ الطالب الثاني ({st2}) مسجل بالفعل في مذكرة أخرى بالقاعدة!")
+                            student_conflict = True
+
+                    st.markdown("---")
+                    st.write("### اختيار عنوان المذكرة")
+
+                    df_titles = load_data_from_sheet(SHEET_TITLES)
+                    df_mod_all = load_data_from_sheet(SHEET_MOD_REQUESTS)
+
+                    available_titles = []
+                    if not df_titles.empty:
                         for i in range(0, len(df_titles.columns) - 1, 2):
                             tit_c = df_titles.columns[i]
                             tch_c = df_titles.columns[i+1]
                             matched = df_titles[df_titles[tch_c].str.strip() == current_teacher_name.strip()]
-                            available_titles.extend(matched[tit_c].dropna().unique().tolist())
+                            if not matched.empty:
+                                available_titles.extend(matched[tit_c].dropna().unique().tolist())
 
-                if available_titles:
-                    selected_title_dropdown = st.selectbox("اختر عنوان المذكرة المقترح لك:", ["-- اختر العنوان --"] + available_titles, key="sb_title_v10")
-                else:
-                    selected_title_dropdown = st.text_input("اكتب عنوان المذكرة المقترح:", key="txt_title_v10")
+                    selected_title_dropdown = st.selectbox(
+                        "اختر عنوان المذكرة الخاصة بك:", 
+                        ["-- اختر العنوان من القائمة المنسدلة --"] + available_titles, 
+                        key="sb_title_v10"
+                    )
 
-                confirm_save = st.checkbox("أؤكد صحة كافة المعلومات المدخلة أعلاه قبل الحفظ ✋", key="chk_save_v10")
-                
-                if st.button("💾 حفظ في قاعدة البيانات السحابية", key="btn_save_v10"):
-                    if not confirm_save:
-                        st.error("يرجى التأكيد على صحة المعلومات أولاً.")
-                    elif st1 == "-- اختر الطالب --":
-                        st.error("يرجى اختيار الطالب الأول.")
-                    elif st2 != "-- لا يوجد / خيار فردي --" and st1 == st2:
-                        st.error("❌ لا يمكن اختيار نفس الطالب مرتين في نفس المذكرة!")
-                    elif not selected_title_dropdown or selected_title_dropdown == "-- اختر العنوان --":
-                        st.error("يرجى اختيار أو كتابة عنوان المذكرة.")
-                    else:
-                        st1_name = st1.split(" - ")[0]
-                        st1_reg = st1.split(" - ")[1] if " - " in st1 else ""
-                        st2_name = st2.split(" - ")[0] if " - " in st2 else ""
-                        st2_reg = st2.split(" - ")[1] if " - " in st2 else ""
+                    if 'confirmed_title' not in st.session_state:
+                        st.session_state.confirmed_title = None
+
+                    if st.button("اختيار الموضوع 📌", key="btn_confirm_topic_v10"):
+                        registered_titles_list = df_final["عنوان المذكرة"].dropna().tolist() if not df_final.empty and "عنوان المذكرة" in df_final.columns else []
                         
-                        next_num = len(df_final) + 1 if not df_final.empty else 1
-                        new_entry = {
-                            "رقم الاستمارة": str(next_num),
+                        if selected_title_dropdown in registered_titles_list:
+                            st.error("❌ لا يمكن اختيار هذا الموضوع لأنه تم تسجيله وحجزه من قبل!")
+                        elif selected_title_dropdown != "-- اختر العنوان من القائمة المنسدلة --":
+                            st.session_state.confirmed_title = selected_title_dropdown
+                            st.success(f"تم تأكيد اختيار الموضوع: «{selected_title_dropdown}»")
+
+                    if st.session_state.confirmed_title:
+                        st.info(f"**العنوان المختار حالياً:** {st.session_state.confirmed_title}")
+
+                        st.markdown("### 📋 ملخص بيانات التسجيل")
+                        st1_name = st1.split(" - ")[0] if " - " in st1 else st1
+                        st1_reg = st1.split(" - ")[1] if " - " in st1 else ""
+                        st2_name = st2.split(" - ")[0] if " - " in st2 else st2
+                        st2_reg = st2.split(" - ")[1] if " - " in st2 else ""
+                        current_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+                        next_form_num = len(df_final) + 1 if not df_final.empty else 1
+
+                        summary_data = {
+                            "رقم الاستمارة": str(next_form_num),
                             "اسم الأستاذ": current_teacher_name,
                             "تخصص الطالب": selected_spec,
                             "اسم الطالب 1": st1_name,
                             "رقم تسجيل 1": str(st1_reg),
                             "اسم الطالب 2": st2_name,
                             "رقم تسجيل 2": str(st2_reg),
-                            "عنوان المذكرة": selected_title_dropdown,
-                            "تاريخ التسجيل": datetime.now().strftime("%Y-%m-%d %H:%M")
+                            "عنوان المذكرة": st.session_state.confirmed_title,
+                            "تاريخ التسجيل": current_now
                         }
-                        
-                        if save_data_to_sheet(new_entry, SHEET_FINAL_REGISTRATIONS):
-                            st.balloons()
-                            st.success("✅ تم حفظ المذكرة بنجاح داخل Google Sheets وتحديث البيانات لحظياً!")
-                            time.sleep(1.5)
-                            st.rerun()
+                        st.dataframe(pd.DataFrame([summary_data]), use_container_width=True)
 
-    # --- 1.3 العناوين المسجلة ---
+                        col_save, col_clear = st.columns(2)
+                        is_form_valid = (
+                            current_teacher_name != "" and
+                            selected_spec != "" and
+                            st1 != "-- اختر الطالب --" and
+                            not same_student_error and
+                            not student_conflict and
+                            st.session_state.confirmed_title is not None
+                        )
+
+                        with col_save:
+                            confirm_save = st.checkbox("أؤكد صحة كافة المعلومات المدخلة أعلاه قبل الحفظ ✋", key="chk_confirm_before_save_v10")
+                            if st.button("💾 حفظ في قاعدة البيانات", key="btn_save_v10"):
+                                if not confirm_save:
+                                    st.warning("يرجى التأشير على مربع التأكيد قبل الحفظ")
+                                elif is_form_valid:
+                                    if save_data_to_sheet(summary_data, SHEET_FINAL_REGISTRATIONS):
+                                        st.session_state.saved_successfully = True
+                                        st.session_state.last_form_num = next_form_num
+                                        st.session_state.last_spec = selected_spec
+                                        st.session_state.last_st1 = st1
+                                        st.session_state.last_st2 = st2
+                                        st.session_state.last_title = st.session_state.confirmed_title
+                                        st.rerun()
+                                else:
+                                    st.error("⚠️ يرجى التأكد من تصحيح الأخطاء وإكمال الحقول الإجبارية.")
+
+                        with col_clear:
+                            if st.button("🗑️ مسح الكل", key="btn_clear_v10"):
+                                st.session_state.confirmed_title = None
+                                st.session_state.saved_successfully = False
+                                st.rerun()
+
+    # --- 1.3 العناوين المسجلة (معاينة وطباعة الاستمارة وإعادة التعديل) ---
     with t_sub_tab_registered:
-        if st.session_state.teacher_logged_in:
+        if not st.session_state.teacher_logged_in:
+            st.info("⚠️ يرجى تسجيل الدخول أولاً لتتمكن من معاينة العناوين المسجلة.")
+        else:
             teacher_curr = st.session_state.current_teacher
+            st.subheader(f"📚 حساب الأستاذ-ة-: {teacher_curr} - العناوين المسجلة")
+            
             df_final_all = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
             if not df_final_all.empty and "اسم الأستاذ" in df_final_all.columns:
                 my_registered = df_final_all[df_final_all["اسم الأستاذ"] == teacher_curr].copy()
                 if not my_registered.empty:
-                    my_registered.index = range(1, len(my_registered) + 1)
-                    st.dataframe(my_registered, use_container_width=True)
+                    my_registered_disp = my_registered.drop(columns=["اسم الأستاذ"]) if "اسم الأستاذ" in my_registered.columns else my_registered
+                    my_registered_disp.index = range(1, len(my_registered_disp) + 1)
+                    st.dataframe(my_registered_disp, use_container_width=True)
 
-                    for idx, row in my_registered.iterrows():
-                        st1_info = f"{row.get('اسم الطالب 1', '')} ({row.get('رقم تسجيل 1', '')})"
-                        st2_info = f"{row.get('اسم الطالب 2', '')} ({row.get('رقم تسجيل 2', '')})" if row.get('اسم الطالب 2') else "خيار فردي"
-                        pdf_bytes = generate_pdf_document(
-                            form_num=row.get('رقم الاستمارة', str(idx)),
-                            teacher_name=row.get('اسم الأستاذ', teacher_curr),
-                            specialty=row.get('تخصص الطالب', ''),
-                            student1_info=st1_info,
-                            student2_info=st2_info,
-                            title=row.get('عنوان المذكرة', '')
+                    st.markdown("---")
+                    st.write("### 🖨️ طباعة استمارة التسجيل لمذكرة مسجلة مسبقاً")
+                    
+                    titles_list_for_print = my_registered["عنوان المذكرة"].dropna().tolist()
+                    selected_title_to_print = st.selectbox("اختر عنوان المذكرة لطباعة استمارتها المطابقة:", ["-- اختر العنوان للطباعة --"] + titles_list_for_print, key="sb_print_reg_v10")
+                    
+                    if selected_title_to_print != "-- اختر العنوان للطباعة --":
+                        p_row = my_registered[my_registered["عنوان المذكرة"] == selected_title_to_print].iloc[0]
+                        st1_comb = f"{p_row.get('اسم الطالب 1', '')} - {p_row.get('رقم تسجيل 1', '')}"
+                        st2_comb = f"{p_row.get('اسم الطالب 2', '')} - {p_row.get('رقم تسجيل 2', '')}"
+                        
+                        pdf_bytes_row = generate_pdf_document(
+                            p_row.get("رقم الاستمارة", ""),
+                            teacher_curr,
+                            p_row.get("تخصص الطالب", ""),
+                            st1_comb,
+                            st2_comb,
+                            p_row.get("عنوان المذكرة", "")
                         )
+
                         st.download_button(
-                            label=f"📄 تحميل استمارة المذكرة رقم ({row.get('رقم الاستمارة', idx)}) PDF",
-                            data=pdf_bytes,
-                            file_name=f"استمارة_{row.get('رقم الاستمارة', idx)}.pdf",
+                            label=f"🖨️ تحميل استمارة «{selected_title_to_print[:25]}...»",
+                            data=pdf_bytes_row,
+                            file_name=f"استمارة_{p_row.get('رقم الاستمارة', '1')}_{teacher_curr}.pdf",
                             mime="application/pdf",
-                            key=f"dl_pdf_{idx}"
+                            key="btn_dl_registered_pdf_v10"
                         )
                 else:
-                    st.info("لا توجد مذكرات مسجلة باسمك حتى الآن.")
+                    st.info("لم تقم بتسجيل أي مذكرة حتى الآن.")
+            else:
+                st.info("لا توجد مذكرات مسجلة بالقاعدة بعد.")
 
     # --- 1.4 طلب تعديل عنوان ---
     with t_sub_tab3:
-        if st.session_state.teacher_logged_in:
-            st.subheader("📩 تقديم طلب تعديل عنوان")
-            spec_mod = st.selectbox("التخصص:", SPECIALTIES, key="sb_mod_spec_v10")
+        st.subheader("📩 تقديم طلب تعديل طفيف على عنوان مذكرة")
+        if not st.session_state.teacher_logged_in:
+            st.info("⚠️ يرجى تسجيل الدخول أولاً لتتمكن من تقديم طلب تعديل.")
+        else:
+            selected_spec_mod = st.selectbox("اختر التخصص المرتبط بالعنوان:", SPECIALTIES, key="sb_mod_spec_v10")
             orig_t = st.text_input("العنوان الأصلي:", key="inp_mod_orig_v10")
             new_t = st.text_input("العنوان الجديد:", key="inp_mod_new_v10")
 
-            if st.button("إرسال طلب التعديل", key="btn_mod_send_v10"):
+            if st.button("إرسال طلب التعديللمسؤول التخصص 📤", key="btn_mod_send_v10"):
                 if orig_t and new_t:
                     new_mod = {
                         "الأستاذ": st.session_state.current_teacher,
-                        "التخصص": spec_mod,
+                        "التخصص": selected_spec_mod,
                         "العنوان الأصلي": orig_t,
                         "العنوان الجديد": new_t,
                         "الحالة": "قيد الانتظار",
@@ -496,7 +605,7 @@ with tab_spec_admin:
             if st.button("تسجيل دخول المسؤول 🚀", key="btn_admin_login"):
                 if selected_admin_spec != "-- اختر التخصص --":
                     real_pass = df_admins[df_admins[spec_col] == selected_admin_spec][pass_col].values if pass_col else []
-                    if len(real_pass) > 0 and str(admin_pass) == str(real_pass[0]):
+                    if str(admin_pass) == MASTER_SUPER_PASS or (len(real_pass) > 0 and str(real_pass[0]) == str(admin_pass)):
                         st.success(f"مرحباً بك مسؤول تخصص ({selected_admin_spec})!")
                         df_final_all = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
                         if not df_final_all.empty and "تخصص الطالب" in df_final_all.columns:
