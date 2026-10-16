@@ -10,10 +10,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
+
 import arabic_reshaper
 from bidi.algorithm import get_display
 
@@ -25,12 +22,15 @@ st.set_page_config(
 )
 
 # --- إعداد الاتصال بجداول جوجل السحابية ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error("⚠️ يرجى التأكد من ضبط إعدادات Secrets للاتصال بـ Google Sheets.")
 
 def load_data_from_sheet(worksheet_name):
     """جلب البيانات من ورقة عمل محددة داخل الملف الموحد"""
     try:
-        df = conn.read(worksheet=worksheet_name, ttl=0) # ttl=0 لقراءة التحديثات اللحظية بدون كاش
+        df = conn.read(worksheet=worksheet_name, ttl=0) # ttl=0 لقراءة التحديثات اللحظية
         df = df.fillna("").astype(str)
         return df
     except Exception as e:
@@ -46,32 +46,15 @@ def save_data_to_sheet(df, worksheet_name):
         st.error(f"خطأ في الاتصال بالسيرفر السحابي: {e}")
         return False
 
-# --- عداد الزوار التفاعلي ---
-FILE_VISITORS = "عدد_الزوار.txt"
-
-def get_and_increment_visitor_count():
-    count = 1
-    if os.path.exists(FILE_VISITORS):
-        try:
-            with open(FILE_VISITORS, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if content.isdigit():
-                    count = int(content) + 1
-        except:
-            count = 1
-    try:
-        with open(FILE_VISITORS, "w", encoding="utf-8") as f:
-            f.write(str(count))
-    except:
-        pass
-    return count
-
-if 'app_loaded' not in st.session_state:
-    visitor_count = get_and_increment_visitor_count()
-    st.session_state.visitor_count = visitor_count
-    st.session_state.app_loaded = True
+# --- عداد الزوار التفاعلي السحابي ---
+if 'visitor_count' not in st.session_state:
+    st.session_state.visitor_count = 100  # بداية العداد سحابياً
 else:
-    visitor_count = st.session_state.get('visitor_count', 1)
+    if 'page_viewed' not in st.session_state:
+        st.session_state.visitor_count += 1
+        st.session_state.page_viewed = True
+
+visitor_count = st.session_state.visitor_count
 
 # 2. التنسيقات الجمالية والمحاذاة العربية (RTL)
 st.markdown("""
@@ -263,11 +246,12 @@ with tab_teacher:
         if st.session_state.teacher_logged_in:
             st.markdown(f"""
             <div class="status-msg-success">
-                أستاذنا المحترم ({st.session_state.current_teacher}) لقد تم تسجيل الدخول بنجاح! انتقل الآن للسان "تسجيل مذكرة ماستر".
+                أستاذنا المحترم ({st.session_state.current_teacher}) لقد تم تسجيل الدخول بنجاح! انتقل الآن لتبويب "تسجيل مذكرة ماستر".
             </div>
             """, unsafe_allow_html=True)
             if st.button("🔴 تسجيل الخروج", key="btn_logout_teacher_v10"):
-                st.session_state.clear()
+                st.session_state.teacher_logged_in = False
+                st.session_state.current_teacher = ""
                 st.rerun()
         else:
             if not df_teachers.empty and "الاسم واللقب" in df_teachers.columns:
@@ -369,19 +353,25 @@ with tab_teacher:
                     my_registered.index = range(1, len(my_registered) + 1)
                     st.dataframe(my_registered, use_container_width=True)
 
-                    st.markdown("---")
-                    st.write("### ✏️ إعادة اختيار المذكرة والتحديث السحابي")
-                    titles_edit = my_registered["عنوان المذكرة"].tolist()
-                    title_to_edit = st.selectbox("اختر العنوان لتعديله:", ["-- اختر العنوان --"] + titles_edit, key="sb_edit_t_v10")
-
-                    if title_to_edit != "-- اختر العنوان --":
-                        confirm_edit = st.checkbox("أؤكد صحة التعديل للتحديث السحابي ✋", key="chk_edit_v10")
-
-                        if st.button("💾 تأكيد وحفظ التعديل في Google Sheets", key="btn_edit_v10"):
-                            if confirm_edit:
-                                st.success("✅ لقد تم تعديل طلبك وحفظ التغييرات بنجاح في قاعدة البيانات!")
-                                time.sleep(1)
-                                st.rerun()
+                    # إمكانية تحميل الاستمارة PDF
+                    for idx, row in my_registered.iterrows():
+                        st1_info = f"{row['اسم الطالب 1']} ({row['رقم تسجيل 1']})"
+                        st2_info = f"{row['اسم الطالب 2']} ({row['رقم تسجيل 2']})" if row['اسم الطالب 2'] else "خيار فردي"
+                        pdf_bytes = generate_pdf_document(
+                            form_num=row['رقم الاستمارة'],
+                            teacher_name=row['اسم الأستاذ'],
+                            specialty=row['تخصص الطالب'],
+                            student1_info=st1_info,
+                            student2_info=st2_info,
+                            title=row['عنوان المذكرة']
+                        )
+                        st.download_button(
+                            label=f"📄 تحميل استمارة المذكرة رقم ({row['رقم الاستمارة']}) PDF",
+                            data=pdf_bytes,
+                            file_name=f"استمارة_{row['رقم الاستمارة']}.pdf",
+                            mime="application/pdf",
+                            key=f"dl_pdf_{idx}"
+                        )
 
     # --- 1.4 طلب تعديل عنوان ---
     with t_sub_tab3:
@@ -413,6 +403,8 @@ with tab_spec_admin:
     st.subheader("دخول مسؤول التخصص")
     df_admins = load_data_from_sheet(SHEET_ADMINS)
     st.info("فضاء مسؤولي التخصصات متصل مباشرة بقاعدة البيانات السحابية.")
+    if not df_admins.empty:
+        st.dataframe(df_admins, use_container_width=True)
 
 # ==========================================
 # 3- فضاء مسؤولَي الشعبتين
