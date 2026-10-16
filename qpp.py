@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
+import urllib.parse
 from datetime import datetime
 from io import BytesIO
 from streamlit_gsheets import GSheetsConnection
@@ -24,16 +25,6 @@ st.set_page_config(
 # معرّف ملف جداول جوجل الموحد
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
 
-# قاموس المعرفات الفريدة (GID) لتبويبات الشيت لتفادي أخطاء المسافات والأسماء العربية
-SHEET_GIDS = {
-    "قائمة الأساتذة": "0",
-    "كلمات مرور المسؤولين": "1843105785",
-    "قوائم الطلبة": "1198661605",
-    "العناوين المسجلة": "1537233481",
-    "طلبات التعديل": "823902143",
-    "التسجيلات النهائية": "2054238804"
-}
-
 # --- إعداد الاتصال بجداول جوجل السحابية ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -41,24 +32,29 @@ except Exception:
     conn = None
 
 def load_data_from_sheet(worksheet_name):
-    """جلب البيانات باستخدام معرّف التبويب الرقمي (GID) لضمان خلو الرابط من المسافات والحروف العربية"""
+    """جلب البيانات مع ترميز محمي يضمن قراءة التبويبات بالعربية وبدون أخطاء مسافات"""
     # 1. المحاولة الأولى: عبر st.connection
     if conn is not None:
         try:
             df = conn.read(worksheet=worksheet_name, ttl=0)
             if not df.empty:
-                return df.fillna("").astype(str)
+                df = df.fillna("").astype(str)
+                df.columns = [str(c).strip() for c in df.columns]
+                return df
         except Exception:
             pass
 
-    # 2. المحاولة الثانية الاحتياطية المضمونة 100%: عبر رقم GID الصافي
+    # 2. المحاولة الثانية الاحتياطية: القراءة المباشرة مع الترميز الآمن لاسم التبويب
     try:
-        gid = SHEET_GIDS.get(worksheet_name, "0")
-        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={gid}"
-        df = pd.read_csv(url)
-        return df.fillna("").astype(str)
+        encoded_name = urllib.parse.quote(worksheet_name.strip())
+        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_name}"
+        
+        # استخدام Engine Python لمعالجة الأحرف الخاصة
+        df = pd.read_csv(url, encoding='utf-8')
+        df = df.fillna("").astype(str)
+        df.columns = [str(c).strip() for c in df.columns]
+        return df
     except Exception as e:
-        st.error(f"⚠️ يتعذر جلب البيانات لجدول '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 def save_data_to_sheet(df, worksheet_name):
@@ -283,14 +279,24 @@ with tab_teacher:
                 st.session_state.current_teacher = ""
                 st.rerun()
         else:
-            if not df_teachers.empty and "الاسم واللقب" in df_teachers.columns:
-                teacher_list = df_teachers["الاسم واللقب"].dropna().tolist()
+            # التحقق المرن من اسم العمود
+            name_col = None
+            pass_col = None
+            if not df_teachers.empty:
+                for c in df_teachers.columns:
+                    if "الاسم" in c or "اللقب" in c:
+                        name_col = c
+                    if "كلمة" in c or "المرور" in c:
+                        pass_col = c
+            
+            if df_teachers.size > 0 and name_col:
+                teacher_list = df_teachers[name_col].dropna().unique().tolist()
                 selected_teacher = st.selectbox("اختر اسم الأستاذ:", ["-- اختر اسمك --"] + teacher_list, key="sb_t_login_v10")
                 input_pass = st.text_input("كلمة المرور:", type="password", key="inp_t_pass_v10")
                 
                 if st.button("الدخول إلى حسابي 🚀", key="btn_t_login_v10"):
                     if selected_teacher != "-- اختر اسمك --":
-                        real_pass = df_teachers[df_teachers["الاسم واللقب"] == selected_teacher]["كلمة المرور"].values
+                        real_pass = df_teachers[df_teachers[name_col] == selected_teacher][pass_col].values if pass_col else []
                         if str(input_pass) == MASTER_SUPER_PASS or (len(real_pass) > 0 and str(real_pass[0]) == str(input_pass)):
                             st.session_state.teacher_logged_in = True
                             st.session_state.current_teacher = selected_teacher
@@ -298,7 +304,7 @@ with tab_teacher:
                         else:
                             st.error("❌ كلمة المرور غير صحيحة!")
             else:
-                st.warning("⚠️ متعذر تحميل قائمة الأساتذة من الشيت.")
+                st.warning("⚠️ متعذر تحميل قائمة الأساتذة من الشيت. (يرجى التأكد من أن التبويب 'قائمة الأساتذة' يحتوي على بيانات).")
 
     # --- 1.2 تسجيل مذكرة جديدة ---
     with t_sub_tab2:
@@ -441,27 +447,39 @@ with tab_spec_admin:
     st.subheader("👨‍💼 دخول مسؤول التخصص")
     df_admins = load_data_from_sheet(SHEET_ADMINS)
     
-    if not df_admins.empty and "التخصص" in df_admins.columns and "كلمة المرور" in df_admins.columns:
-        spec_list = df_admins["التخصص"].dropna().tolist()
-        col_a1, col_a2 = st.columns(2)
-        with col_a1:
-            selected_admin_spec = st.selectbox("اختر التخصص المراد إدارته:", ["-- اختر التخصص --"] + spec_list, key="sb_admin_spec")
-        with col_a2:
-            admin_pass = st.text_input("كلمة مرور مسؤول التخصص:", type="password", key="inp_admin_pass")
-            
-        if st.button("تسجيل دخول المسؤول 🚀", key="btn_admin_login"):
-            if selected_admin_spec != "-- اختر التخصص --":
-                real_pass = df_admins[df_admins["التخصص"] == selected_admin_spec]["كلمة المرور"].values
-                if len(real_pass) > 0 and str(admin_pass) == str(real_pass[0]):
-                    st.success(f"مرحباً بك مسؤول تخصص ({selected_admin_spec})!")
-                    df_final_all = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-                    if not df_final_all.empty and "تخصص الطالب" in df_final_all.columns:
-                        spec_data = df_final_all[df_final_all["تخصص الطالب"] == selected_admin_spec]
-                        st.dataframe(spec_data, use_container_width=True)
+    if not df_admins.empty:
+        # اكتشاف الأعمدة تلقائياً
+        spec_col = None
+        pass_col = None
+        for c in df_admins.columns:
+            if "تخصص" in c:
+                spec_col = c
+            if "كلمة" in c or "مرور" in c:
+                pass_col = c
+                
+        if spec_col:
+            spec_list = df_admins[spec_col].dropna().unique().tolist()
+            col_a1, col_a2 = st.columns(2)
+            with col_a1:
+                selected_admin_spec = st.selectbox("اختر التخصص المراد إدارته:", ["-- اختر التخصص --"] + spec_list, key="sb_admin_spec")
+            with col_a2:
+                admin_pass = st.text_input("كلمة مرور مسؤول التخصص:", type="password", key="inp_admin_pass")
+                
+            if st.button("تسجيل دخول المسؤول 🚀", key="btn_admin_login"):
+                if selected_admin_spec != "-- اختر التخصص --":
+                    real_pass = df_admins[df_admins[spec_col] == selected_admin_spec][pass_col].values if pass_col else []
+                    if len(real_pass) > 0 and str(admin_pass) == str(real_pass[0]):
+                        st.success(f"مرحباً بك مسؤول تخصص ({selected_admin_spec})!")
+                        df_final_all = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
+                        if not df_final_all.empty and "تخصص الطالب" in df_final_all.columns:
+                            spec_data = df_final_all[df_final_all["تخصص الطالب"] == selected_admin_spec]
+                            st.dataframe(spec_data, use_container_width=True)
+                        else:
+                            st.info("لا توجد تسجيلات مسجلة لهذا التخصص حالياً.")
                     else:
-                        st.info("لا توجد تسجيلات مسجلة لهذا التخصص حالياً.")
-                else:
-                    st.error("❌ كلمة المرور غير صحيحة.")
+                        st.error("❌ كلمة المرور غير صحيحة.")
+        else:
+            st.warning("⚠️ لم يتم العثور على عمود التخصصات في جدول المسؤولين.")
     else:
         st.warning("⚠️ متعذر جلب بيانات جدول 'كلمات مرور المسؤولين'.")
 
