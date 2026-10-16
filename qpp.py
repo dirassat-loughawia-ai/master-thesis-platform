@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
+import requests
 import urllib.parse
 from datetime import datetime
 from io import BytesIO
@@ -22,8 +23,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# معرّف ملف جداول جوجل الموحد
+# معرّف ملف جداول جوجل ورابط تطبيق الويب لحفظ البيانات
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyM9CVCiTLW5dcPZp13N4moSCpt_to-kc7o8ZPQCQPX3AjU_SV0fLXm7wNT5odtkWoyZA/exec"
 
 # --- إعداد الاتصال بجداول جوجل السحابية ---
 try:
@@ -44,31 +46,32 @@ def load_data_from_sheet(worksheet_name):
         except Exception:
             pass
 
-    # 2. المحاولة الثانية الاحتياطية: القراءة المباشرة مع الترميز الآمن لاسم التبويب
+    # 2. المحاولة الثانية الاحتياطية: القراءة المباشرة عبر CSV مع الترميز الآمن لاسم التبويب
     try:
         encoded_name = urllib.parse.quote(worksheet_name.strip())
         url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_name}"
-        
-        # استخدام Engine Python لمعالجة الأحرف الخاصة
         df = pd.read_csv(url, encoding='utf-8')
         df = df.fillna("").astype(str)
         df.columns = [str(c).strip() for c in df.columns]
         return df
-    except Exception as e:
+    except Exception:
         return pd.DataFrame()
 
-def save_data_to_sheet(df, worksheet_name):
-    """حفظ وتحديث البيانات مباشرة في ورقة العمل المحددة"""
+def save_data_to_sheet(row_data_dict, worksheet_name):
+    """حفظ البيانات المباشر عبر Google Apps Script بدون إشراك Service Account"""
     try:
-        if conn is not None:
-            df_to_save = df.copy().fillna("").astype(str)
-            conn.update(worksheet=worksheet_name, data=df_to_save)
+        payload = {
+            "sheet_name": worksheet_name,
+            "row_data": list(row_data_dict.values())
+        }
+        response = requests.post(WEB_APP_URL, json=payload, timeout=10)
+        if response.status_code == 200:
             return True
         else:
-            st.error("خطأ: الاتصال بالسيرفر السحابي غير متصل للكتابة.")
+            st.error(f"خطأ في الاستجابة من السيرفر: {response.status_code}")
             return False
     except Exception as e:
-        st.error(f"خطأ في الاتصال بالسيرفر السحابي عند الحفظ: {e}")
+        st.error(f"خطأ عند حفظ البيانات سحابياً: {e}")
         return False
 
 # --- عداد الزوار التفاعلي السحابي ---
@@ -142,7 +145,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# أسماء أوراق العمل المطابقة بالضبط لملف جداول جوجل
+# أسماء أوراق العمل
 SHEET_TEACHERS = "قائمة الأساتذة"
 SHEET_ADMINS = "كلمات مرور المسؤولين"
 SHEET_STUDENTS = "قوائم الطلبة"
@@ -150,7 +153,7 @@ SHEET_TITLES = "العناوين المسجلة"
 SHEET_MOD_REQUESTS = "طلبات التعديل"
 SHEET_FINAL_REGISTRATIONS = "التسجيلات النهائية"
 
-ICON1_PATH = "ICON1.png" if os.path.exists("ICON1.png") else ("ICON1.jpg" if os.path.exists("ICON2.jpg") else None)
+ICON1_PATH = "ICON1.png" if os.path.exists("ICON1.png") else ("ICON1.jpg" if os.path.exists("ICON1.jpg") else None)
 ICON2_PATH = "ICON2.png" if os.path.exists("ICON2.png") else ("ICON2.jpg" if os.path.exists("ICON2.jpg") else None)
 
 SPECIALTIES = ["لسانيات عامة", "أدب عربي حديث ومعاصر", "نقد حديث ومعاصر", "أدب شعبي"]
@@ -279,7 +282,6 @@ with tab_teacher:
                 st.session_state.current_teacher = ""
                 st.rerun()
         else:
-            # التحقق المرن من اسم العمود
             name_col = None
             pass_col = None
             if not df_teachers.empty:
@@ -304,7 +306,7 @@ with tab_teacher:
                         else:
                             st.error("❌ كلمة المرور غير صحيحة!")
             else:
-                st.warning("⚠️ متعذر تحميل قائمة الأساتذة من الشيت. (يرجى التأكد من أن التبويب 'قائمة الأساتذة' يحتوي على بيانات).")
+                st.warning("⚠️ متعذر تحميل قائمة الأساتذة من الشيت.")
 
     # --- 1.2 تسجيل مذكرة جديدة ---
     with t_sub_tab2:
@@ -331,35 +333,67 @@ with tab_teacher:
                     "أدب شعبي": ("تخصص_أدب_شعبي", "رقم_تسجيل_أدب_شعبي")
                 }
 
+                # 1. منع التكرار: جمع قائمة الطلاب المسجلين سابقاً في الشيت
+                registered_registered_ids = set()
+                if not df_final.empty:
+                    if "رقم تسجيل 1" in df_final.columns:
+                        registered_registered_ids.update(df_final["رقم تسجيل 1"].dropna().str.strip().tolist())
+                    if "رقم تسجيل 2" in df_final.columns:
+                        registered_registered_ids.update(df_final["رقم تسجيل 2"].dropna().str.strip().tolist())
+
                 if not df_students.empty and selected_spec in spec_col_map:
                     name_col, reg_col = spec_col_map[selected_spec]
                     if name_col in df_students.columns and reg_col in df_students.columns:
                         for _, row in df_students.iterrows():
                             s_name = str(row[name_col]).strip()
                             s_reg = str(row[reg_col]).strip()
-                            if s_name:
+                            # استبعاد الطالب إذا كان مسجلاً سابقاً
+                            if s_name and s_reg and (s_reg not in registered_registered_ids):
                                 students_options.append(f"{s_name} - {s_reg}")
 
                 col_s1, col_s2 = st.columns(2)
                 with col_s1: st1 = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_options, key="st1_v10")
                 with col_s2: st2 = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + students_options, key="st2_v10")
 
+                # 2. جلب العناوين المخصصة للأستاذ الحالي
                 df_titles = load_data_from_sheet(SHEET_TITLES)
                 available_titles = []
-                if not df_titles.empty and "عنوان المذكرة" in df_titles.columns and "الأستاذ" in df_titles.columns:
-                    for _, r in df_titles.iterrows():
-                        if str(r["الأستاذ"]).strip() == current_teacher_name.strip():
-                            available_titles.append(str(r["عنوان المذكرة"]))
                 
+                if not df_titles.empty:
+                    # تصفية الجدول للبحث عن العناوين المنسوبة للأستاذ
+                    t_col, tch_col = None, None
+                    for c in df_titles.columns:
+                        if "عنوان" in c: t_col = c
+                        if "أستاذ" in c or "الأستاذ" in c: tch_col = c
+
+                    if t_col and tch_col:
+                        matched = df_titles[df_titles[tch_col].str.strip() == current_teacher_name.strip()]
+                        available_titles = matched[t_col].dropna().unique().tolist()
+                    else:
+                        # دعم التوزيع الأفقي للتخصصات إذا كان الجدول مرتباً كأزواج
+                        for i in range(0, len(df_titles.columns) - 1, 2):
+                            tit_c = df_titles.columns[i]
+                            tch_c = df_titles.columns[i+1]
+                            matched = df_titles[df_titles[tch_c].str.strip() == current_teacher_name.strip()]
+                            available_titles.extend(matched[tit_c].dropna().unique().tolist())
+
                 if available_titles:
-                    selected_title_dropdown = st.selectbox("اختر عنوان المذكرة الخاصة بك:", ["-- اختر العنوان --"] + available_titles, key="sb_title_v10")
+                    selected_title_dropdown = st.selectbox("اختر عنوان المذكرة المقترح لك:", ["-- اختر العنوان --"] + available_titles, key="sb_title_v10")
                 else:
                     selected_title_dropdown = st.text_input("اكتب عنوان المذكرة المقترح:", key="txt_title_v10")
 
                 confirm_save = st.checkbox("أؤكد صحة كافة المعلومات المدخلة أعلاه قبل الحفظ ✋", key="chk_save_v10")
                 
                 if st.button("💾 حفظ في قاعدة البيانات السحابية", key="btn_save_v10"):
-                    if confirm_save and st1 != "-- اختر الطالب --" and selected_title_dropdown and selected_title_dropdown != "-- اختر العنوان --":
+                    if not confirm_save:
+                        st.error("يرجى التأكيد على صحة المعلومات أولاً.")
+                    elif st1 == "-- اختر الطالب --":
+                        st.error("يرجى اختيار الطالب الأول.")
+                    elif st2 != "-- لا يوجد / خيار فردي --" and st1 == st2:
+                        st.error("❌ لا يمكن اختيار نفس الطالب مرتين في نفس المذكرة!")
+                    elif not selected_title_dropdown or selected_title_dropdown == "-- اختر العنوان --":
+                        st.error("يرجى اختيار أو كتابة عنوان المذكرة.")
+                    else:
                         st1_name = st1.split(" - ")[0]
                         st1_reg = st1.split(" - ")[1] if " - " in st1 else ""
                         st2_name = st2.split(" - ")[0] if " - " in st2 else ""
@@ -378,8 +412,7 @@ with tab_teacher:
                             "تاريخ التسجيل": datetime.now().strftime("%Y-%m-%d %H:%M")
                         }
                         
-                        df_final = pd.concat([df_final, pd.DataFrame([new_entry])], ignore_index=True)
-                        if save_data_to_sheet(df_final, SHEET_FINAL_REGISTRATIONS):
+                        if save_data_to_sheet(new_entry, SHEET_FINAL_REGISTRATIONS):
                             st.balloons()
                             st.success("✅ تم حفظ المذكرة بنجاح داخل Google Sheets وتحديث البيانات لحظياً!")
                             time.sleep(1.5)
@@ -427,7 +460,6 @@ with tab_teacher:
 
             if st.button("إرسال طلب التعديل", key="btn_mod_send_v10"):
                 if orig_t and new_t:
-                    df_mod = load_data_from_sheet(SHEET_MOD_REQUESTS)
                     new_mod = {
                         "الأستاذ": st.session_state.current_teacher,
                         "التخصص": spec_mod,
@@ -436,8 +468,7 @@ with tab_teacher:
                         "الحالة": "قيد الانتظار",
                         "معالج_الطلب": "في الانتظار"
                     }
-                    df_mod = pd.concat([df_mod, pd.DataFrame([new_mod])], ignore_index=True)
-                    if save_data_to_sheet(df_mod, SHEET_MOD_REQUESTS):
+                    if save_data_to_sheet(new_mod, SHEET_MOD_REQUESTS):
                         st.success("تم إرسال الطلب وحفظه بنجاح!")
 
 # ==========================================
@@ -448,14 +479,11 @@ with tab_spec_admin:
     df_admins = load_data_from_sheet(SHEET_ADMINS)
     
     if not df_admins.empty:
-        # اكتشاف الأعمدة تلقائياً
         spec_col = None
         pass_col = None
         for c in df_admins.columns:
-            if "تخصص" in c:
-                spec_col = c
-            if "كلمة" in c or "مرور" in c:
-                pass_col = c
+            if "تخصص" in c: spec_col = c
+            if "كلمة" in c or "مرور" in c: pass_col = c
                 
         if spec_col:
             spec_list = df_admins[spec_col].dropna().unique().tolist()
