@@ -1,0 +1,7 @@
+streamlit
+pandas
+openpyxl
+reportlab
+arabic-reshaper
+python-bidi
+st-gsheets-connection
