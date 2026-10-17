@@ -27,13 +27,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- روابط GitHub الثابتة للملفات والأيقونات والخطوط ---
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/YourUsername/YourRepo/main"  # ⚠️ قم بتعديل رابط المستودع الخاص بك هنا
-
-FONT_URL = f"{GITHUB_RAW_BASE}/amiri.ttf"
-ICON1_URL = f"{GITHUB_RAW_BASE}/icon1.png"
-ICON2_URL = f"{GITHUB_RAW_BASE}/icon2.png"
-
 # معرّف ملف جداول جوجل ورابط تطبيق الويب السحابي
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyM9CVCiTLW5dcPZp13N4moSCpt_to-kc7o8ZPQCQPX3AjU_SV0fLXm7wNT5odtkWoyZA/exec"
@@ -131,34 +124,31 @@ def update_mod_request_status_in_sheet(orig_title, status, handler):
         st.error(f"خطأ في تحديث القرار: {e}")
         return False
 
-# --- 4. إعداد وتحميل الخط العربي والأيقونات ---
-@st.cache_resource
-def load_github_file(url):
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200:
-            return BytesIO(r.content)
-    except Exception:
-        pass
-    return None
-
+# --- 4. إعداد وتحميل الخط العربي والأيقونات محلياً ومن السحابة ---
 def setup_arabic_font():
-    font_bytes = load_github_file(FONT_URL)
-    if font_bytes:
-        try:
-            pdfmetrics.registerFont(TTFont('ArabicFont', font_bytes))
-            pdfmetrics.registerFont(TTFont('ArabicFont-Bold', font_bytes))
-            return 'ArabicFont', 'ArabicFont-Bold'
-        except Exception:
-            pass
-    
-    if os.path.exists("amiri.ttf"):
-        try:
+    # 1. فحص الملفات المحلية أولاً
+    local_fonts = ["amiri.ttf", "Amiri-Regular.ttf", "arial.ttf"]
+    for font_p in local_fonts:
+        if os.path.exists(font_p):
+            try:
+                pdfmetrics.registerFont(TTFont('ArabicFont', font_p))
+                pdfmetrics.registerFont(TTFont('ArabicFont-Bold', font_p))
+                return 'ArabicFont', 'ArabicFont-Bold'
+            except Exception:
+                pass
+
+    # 2. التنزيل المباشر للخط من جوجل فونتس إذا لم يوجد محلياً
+    try:
+        url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
+        r = requests.get(url, timeout=5)
+        if r.status_code == 200:
+            with open("amiri.ttf", "wb") as f:
+                f.write(r.content)
             pdfmetrics.registerFont(TTFont('ArabicFont', "amiri.ttf"))
             pdfmetrics.registerFont(TTFont('ArabicFont-Bold', "amiri.ttf"))
             return 'ArabicFont', 'ArabicFont-Bold'
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return 'Helvetica', 'Helvetica-Bold'
 
@@ -170,31 +160,28 @@ def reshape_arabic(text):
     reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
 
-# --- 5. توليد مستندات PDF ---
+# --- 5. توليد مستندات PDF (الاستمارة والتقرير) ---
+def draw_icon_if_exists(can, icon_name, x, y, width=50, height=50):
+    """دالة مرنة لرسم الأيقونات من المجلد المحلي"""
+    if os.path.exists(icon_name):
+        try:
+            can.drawImage(icon_name, x, y, width=width, height=height, mask='auto')
+        except Exception:
+            pass
+
 def generate_pdf_document(form_num, teacher_name, specialty, student1_info, student2_info, title):
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
     page_width, page_height = letter
     center_x = page_width / 2.0
 
+    # إطار الصفحة
     can.setLineWidth(2)
     can.rect(20, 20, page_width - 40, page_height - 40)
 
-    icon1_bytes = load_github_file(ICON1_URL)
-    if icon1_bytes:
-        try:
-            img1 = Image.open(icon1_bytes)
-            can.drawInlineImage(img1, page_width - 80, page_height - 75, width=50, height=50)
-        except Exception:
-            pass
-
-    icon2_bytes = load_github_file(ICON2_URL)
-    if icon2_bytes:
-        try:
-            img2 = Image.open(icon2_bytes)
-            can.drawInlineImage(img2, 30, page_height - 75, width=50, height=50)
-        except Exception:
-            pass
+    # رسم الأيقونتين (icon1 أقصى اليمين، icon2 أقصى اليسار)
+    draw_icon_if_exists(can, "icon1.png", page_width - 80, page_height - 75, 50, 50)
+    draw_icon_if_exists(can, "icon2.png", 30, page_height - 75, 50, 50)
 
     can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawCentredString(center_x, page_height - 40, reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"))
@@ -208,6 +195,7 @@ def generate_pdf_document(form_num, teacher_name, specialty, student1_info, stud
     can.setLineWidth(1)
     can.line(30, page_height - 110, page_width - 30, page_height - 110)
 
+    # تكبير حجم خط العنوان
     can.setFont(ARABIC_FONT_BOLD, 22)
     can.drawCentredString(center_x, page_height - 145, reshape_arabic("استمارة تسجيل مذكرة ماستر"))
     
@@ -351,7 +339,7 @@ with tab_teacher:
                 أستاذنا المحترم ({st.session_state.current_teacher}) لقد تم تسجيل الدخول بنجاح.
             </div>
             """, unsafe_allow_html=True)
-            if st.button("🔴 تسجيل الخروج", key="btn_logout_teacher_v32"):
+            if st.button("🔴 تسجيل الخروج", key="btn_logout_teacher_v33"):
                 st.session_state.clear()
                 st.rerun()
         else:
@@ -363,10 +351,10 @@ with tab_teacher:
             
             if df_teachers.size > 0 and name_col:
                 teacher_list = df_teachers[name_col].dropna().unique().tolist()
-                selected_teacher = st.selectbox("اختر اسم الأستاذ:", ["-- اختر اسمك --"] + teacher_list, key="sb_t_login_v32")
-                input_pass = st.text_input("كلمة المرور:", type="password", key="inp_t_pass_v32")
+                selected_teacher = st.selectbox("اختر اسم الأستاذ:", ["-- اختر اسمك --"] + teacher_list, key="sb_t_login_v33")
+                input_pass = st.text_input("كلمة المرور:", type="password", key="inp_t_pass_v33")
                 
-                if st.button("الدخول إلى حسابي 🚀", key="btn_t_login_v32"):
+                if st.button("الدخول إلى حسابي 🚀", key="btn_t_login_v33"):
                     if selected_teacher != "-- اختر اسمك --":
                         real_pass = df_teachers[df_teachers[name_col] == selected_teacher][pass_col].values if pass_col else []
                         if str(input_pass) == MASTER_SUPER_PASS or (len(real_pass) > 0 and str(real_pass[0]) == str(input_pass)):
@@ -401,14 +389,14 @@ with tab_teacher:
                         st.session_state.last_spec, st.session_state.last_st1, 
                         st.session_state.last_st2, st.session_state.last_title
                     )
-                    st.download_button("🖨️ طباعة استمارة التسجيل (PDF)", data=pdf_data, file_name="استمارة_التسجيل.pdf", mime="application/pdf", key="dl_pdf_v32")
-                    if st.button("📝 تسجيل مذكرة أخرى", key="reset_reg_v32"):
+                    st.download_button("🖨️ طباعة استمارة التسجيل (PDF)", data=pdf_data, file_name="استمارة_التسجيل.pdf", mime="application/pdf", key="dl_pdf_v33")
+                    if st.button("📝 تسجيل مذكرة أخرى", key="reset_reg_v33"):
                         st.session_state.saved_successfully = False
                         st.session_state.confirmed_title = None
                         st.rerun()
                 else:
                     st.subheader(f"مذكرات الأستاذ: {current_teacher_name} (المسجلة حالياً: {teacher_registrations_count} من 3)")
-                    selected_spec = st.selectbox("اختر التخصص:", SPECIALTIES, key="sb_spec_v32")
+                    selected_spec = st.selectbox("اختر التخصص:", SPECIALTIES, key="sb_spec_v33")
                     df_students = load_data_from_sheet(SHEET_STUDENTS)
 
                     all_registered_students = set()
@@ -433,7 +421,6 @@ with tab_teacher:
                     if not df_students.empty and selected_spec in spec_col_map:
                         n_col_target, r_col_target = spec_col_map[selected_spec]
                         
-                        # مطابقة مرنة للأعمدة
                         n_col = [c for c in df_students.columns if n_col_target.replace(" ", "") in c.replace(" ", "") or n_col_target.replace(" ", "_") in c.replace(" ", "_")]
                         r_col = [c for c in df_students.columns if r_col_target.replace(" ", "") in c.replace(" ", "") or r_col_target.replace(" ", "_") in c.replace(" ", "_")]
 
@@ -445,9 +432,9 @@ with tab_teacher:
                                     students_options.append(f"{s_n} - {s_r}")
 
                     col_s1, col_s2 = st.columns(2)
-                    with col_s1: st1 = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_options, key="st1_v32")
+                    with col_s1: st1 = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_options, key="st1_v33")
                     st2_opts = [s for s in students_options if s != st1]
-                    with col_s2: st2 = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + st2_opts, key="st2_v32")
+                    with col_s2: st2 = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + st2_opts, key="st2_v33")
 
                     df_titles = load_data_from_sheet(SHEET_TITLES)
                     available_titles = []
@@ -459,9 +446,9 @@ with tab_teacher:
                             if not matched.empty:
                                 available_titles.extend(matched[tit_c].dropna().unique().tolist())
 
-                    selected_title_dropdown = st.selectbox("اختر عنوان المذكرة الخاصة بك:", ["-- اختر العنوان --"] + available_titles, key="sb_title_v32")
+                    selected_title_dropdown = st.selectbox("اختر عنوان المذكرة الخاصة بك:", ["-- اختر العنوان --"] + available_titles, key="sb_title_v33")
 
-                    if st.button("💾 حفظ في قاعدة البيانات", key="btn_save_v32"):
+                    if st.button("💾 حفظ في قاعدة البيانات", key="btn_save_v33"):
                         if st1 != "-- اختر الطالب --" and selected_title_dropdown != "-- اختر العنوان --":
                             next_form_num = len(df_final) + 1 if not df_final.empty else 1
                             summary_data = {
@@ -488,7 +475,7 @@ with tab_teacher:
         if st.session_state.teacher_logged_in:
             teacher_curr = str(st.session_state.current_teacher).strip()
             st.subheader(f"📚 العناوين المسجلة باسم الأستاذ: {teacher_curr}")
-            if st.button("🔄 تحديث قاعدة البيانات وإظهار العناوين المسجلة", key="btn_ref_reg_v32"):
+            if st.button("🔄 تحديث قاعدة البيانات وإظهار العناوين المسجلة", key="btn_ref_reg_v33"):
                 st.cache_data.clear()
                 st.rerun()
 
@@ -510,7 +497,7 @@ with tab_teacher:
         if st.session_state.teacher_logged_in:
             st.subheader("📩 تقديم طلب تعديل طفيف على عنوان مذكرة")
             teacher_curr = str(st.session_state.current_teacher).strip()
-            selected_spec_mod = st.selectbox("اختر التخصص المرتبط بالعنوان:", SPECIALTIES, key="sb_mod_spec_v32")
+            selected_spec_mod = st.selectbox("اختر التخصص المرتبط بالعنوان:", SPECIALTIES, key="sb_mod_spec_v33")
             
             df_titles = load_data_from_sheet(SHEET_TITLES)
             my_titles = []
@@ -522,10 +509,10 @@ with tab_teacher:
                     if not matched.empty:
                         my_titles.extend(matched[tit_c].dropna().unique().tolist())
 
-            orig_t = st.selectbox("اختر العنوان الأصلي المراد تعديله:", ["-- اختر العنوان الأصلي --"] + my_titles, key="sb_mod_orig_dropdown_v32")
-            new_t = st.text_input("العنوان الجديد المقترح:", key="inp_mod_new_v32")
+            orig_t = st.selectbox("اختر العنوان الأصلي المراد تعديله:", ["-- اختر العنوان الأصلي --"] + my_titles, key="sb_mod_orig_dropdown_v33")
+            new_t = st.text_input("العنوان الجديد المقترح:", key="inp_mod_new_v33")
 
-            if st.button("إرسال طلب التعديل لمسؤول التخصص 📤", key="btn_mod_send_v32"):
+            if st.button("إرسال طلب التعديل لمسؤول التخصص 📤", key="btn_mod_send_v33"):
                 if orig_t != "-- اختر العنوان الأصلي --" and new_t.strip():
                     new_mod = {
                         "الأستاذ": teacher_curr,
@@ -565,10 +552,10 @@ with tab_spec_admin:
     if not st.session_state.spec_admin_logged_in:
         st.subheader("دخول مسؤول التخصص")
         col_admin_spec, col_admin_pass = st.columns(2)
-        with col_admin_spec: admin_selected_spec = st.selectbox("اختر التخصص للمسؤول:", SPECIALTIES, key="sb_admin_spec_login_v32")
-        with col_admin_pass: admin_pass_input = st.text_input("كلمة مرور المسؤول:", type="password", key="admin_p_in_v32")
+        with col_admin_spec: admin_selected_spec = st.selectbox("اختر التخصص للمسؤول:", SPECIALTIES, key="sb_admin_spec_login_v33")
+        with col_admin_pass: admin_pass_input = st.text_input("كلمة مرور المسؤول:", type="password", key="admin_p_in_v33")
 
-        if st.button("تسجيل الدخول كمسؤول تخصص 🚀", key="btn_login_spec_admin_v32"):
+        if st.button("تسجيل الدخول كمسؤول تخصص 🚀", key="btn_login_spec_admin_v33"):
             df_admins = load_data_from_sheet(SHEET_ADMINS)
             if str(admin_pass_input) == MASTER_SUPER_PASS:
                 st.session_state.spec_admin_logged_in = True
@@ -645,16 +632,16 @@ with tab_spec_admin:
                 pending_reqs = spec_reqs[spec_reqs[status_col_name].isin(["قيد الانتظار", "في الانتظار"])]
 
                 if not pending_reqs.empty:
-                    req_orig_title = st.selectbox("اختر طلب التعديل للبت فيه:", ["-- اختر الطلب --"] + pending_reqs[orig_col_name].tolist(), key="sb_mod_dec_v32")
+                    req_orig_title = st.selectbox("اختر طلب التعديل للبت فيه:", ["-- اختر الطلب --"] + pending_reqs[orig_col_name].tolist(), key="sb_mod_dec_v33")
                     if req_orig_title != "-- اختر الطلب --":
                         col_a, col_r = st.columns(2)
                         with col_a:
-                            if st.button("قبول التعديل ✅", key="btn_accept_v32"):
+                            if st.button("قبول التعديل ✅", key="btn_accept_v33"):
                                 if update_mod_request_status_in_sheet(req_orig_title, "تعديل مقبول", admin_selected_spec):
                                     st.success("تم تسجيل القبول بنجاح وتحديث القاعدة!")
                                     st.rerun()
                         with col_r:
-                            if st.button("رفض التعديل ❌", key="btn_reject_v32"):
+                            if st.button("رفض التعديل ❌", key="btn_reject_v33"):
                                 if update_mod_request_status_in_sheet(req_orig_title, "تعديل مرفوض", admin_selected_spec):
                                     st.warning("تم تسجيل الرفض بنجاح وتحديث القاعدة!")
                                     st.rerun()
@@ -672,9 +659,9 @@ with tab_spec_admin:
         with adm_tab_print:
             st.write(f"### 🖨️ طباعة التقرير العام لتخصص: {admin_selected_spec}")
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-            if st.button("📥 إنشاء وتصدير التقرير العام (PDF)", key="btn_print_spec_pdf_v32"):
+            if st.button("📥 إنشاء وتصدير التقرير العام (PDF)", key="btn_print_spec_pdf_v33"):
                 pdf_b = generate_general_report_pdf(df_final, [admin_selected_spec], title_prefix=f"تقرير تخصص {admin_selected_spec}")
-                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name=f"تقرير_{admin_selected_spec}.pdf", mime="application/pdf", key="dl_spec_pdf_v32")
+                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name=f"تقرير_{admin_selected_spec}.pdf", mime="application/pdf", key="dl_spec_pdf_v33")
 
 # ==========================================
 # 3- فضاء مسؤولَي الشعبتين
@@ -685,8 +672,8 @@ with tab_dept_admin:
 
     if not st.session_state.dept_admin_logged_in:
         st.subheader("دخول مسؤولَي الشعبتين")
-        dept_pass_input = st.text_input("كلمة مرور مسؤول الشعبة:", type="password", key="dept_p_in_v32")
-        if st.button("تسجيل الدخول كمسؤول شعبة 🚀", key="btn_login_dept_admin_v32"):
+        dept_pass_input = st.text_input("كلمة مرور مسؤول الشعبة:", type="password", key="dept_p_in_v33")
+        if st.button("تسجيل الدخول كمسؤول شعبة 🚀", key="btn_login_dept_admin_v33"):
             if dept_pass_input in ["1234", MASTER_SUPER_PASS]:
                 st.session_state.dept_admin_logged_in = True
                 st.rerun()
@@ -718,8 +705,8 @@ with tab_dept_admin:
             st.metric("إجمالي المذكرات المسجلة بالقسم", len(df_final) if not df_final.empty else 0)
 
         with d_tab4:
-            selected_specs_report = st.multiselect("حدد التخصصات المطلوب طباعتها:", options=SPECIALTIES, default=SPECIALTIES, key="ms_dept_v32")
+            selected_specs_report = st.multiselect("حدد التخصصات المطلوب طباعتها:", options=SPECIALTIES, default=SPECIALTIES, key="ms_dept_v33")
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-            if st.button("📥 تصدير التقرير العام (PDF)", key="btn_print_dept_pdf_v32"):
+            if st.button("📥 تصدير التقرير العام (PDF)", key="btn_print_dept_pdf_v33"):
                 pdf_b = generate_general_report_pdf(df_final, selected_specs_report)
-                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name="التقرير_العام.pdf", mime="application/pdf", key="dl_dept_pdf_v32")
+                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name="التقرير_العام.pdf", mime="application/pdf", key="dl_dept_pdf_v33")
