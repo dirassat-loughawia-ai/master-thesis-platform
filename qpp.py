@@ -619,8 +619,7 @@ with tab_spec_admin:
                 spec_registrations = df_final[df_final["تخصص الطالب"] == admin_selected_spec].copy()
                 spec_registrations.index = range(1, len(spec_registrations) + 1)
                 st.dataframe(spec_registrations, use_container_width=True)
-
-        with adm_tab3:
+with adm_tab3:
             st.write("### 📩 البت في طلبات التعديل (إدراج القرار في نفس السطر الأصلي)")
             df_mod = load_data_from_sheet(SHEET_MOD_REQUESTS)
             if not df_mod.empty and "التخصص" in df_mod.columns:
@@ -628,15 +627,34 @@ with tab_spec_admin:
                 spec_reqs.index = range(1, len(spec_reqs) + 1)
                 st.dataframe(spec_reqs, use_container_width=True)
 
-                pending_reqs = spec_reqs[spec_reqs["الحالة"].isin(["قيد الانتظار", "في الانتظار"])]
-                if not pending_reqs.empty:
-                    req_orig_title = st.selectbox("اختر طلب التعديل للبت فيه:", ["-- اختر الطلب --"] + pending_reqs["العنوان الأصلي"].tolist(), key="sb_mod_dec_v30")
+                # البحث المرن عن عمود العنوان الأصلي لتفادي KeyError
+                orig_col_name = None
+                for c in spec_reqs.columns:
+                    if "أصلي" in c or "اصلي" in c or "العنوان" in c:
+                        orig_col_name = c
+                        break
+
+                pending_reqs = pd.DataFrame()
+                if "الحالة" in spec_reqs.columns:
+                    pending_reqs = spec_reqs[spec_reqs["الحالة"].isin(["قيد الانتظار", "في الانتظار"])]
+
+                if not pending_reqs.empty and orig_col_name:
+                    req_orig_title = st.selectbox(
+                        "اختر طلب التعديل للبت فيه:", 
+                        ["-- اختر الطلب --"] + pending_reqs[orig_col_name].tolist(), 
+                        key="sb_mod_dec_v30"
+                    )
                     if req_orig_title != "-- اختر الطلب --":
                         col_a, col_r = st.columns(2)
                         with col_a:
                             if st.button("قبول التعديل ✅", key="btn_accept_v30"):
                                 if update_mod_request_status_in_sheet(req_orig_title, "تعديل مقبول", admin_selected_spec):
                                     st.success("تم تسجيل القبول بنجاح في السطر نفسه!")
+                                    st.rerun()
+                        with col_r:
+                            if st.button("رفض التعديل ❌", key="btn_reject_v30"):
+                                if update_mod_request_status_in_sheet(req_orig_title, "تعديل مرفوض", admin_selected_spec):
+                                    st.warning("تم تسجيل الرفض بنجاح في السطر نفسه!")
                                     st.rerun()
                         with col_r:
                             if st.button("رفض التعديل ❌", key="btn_reject_v30"):
