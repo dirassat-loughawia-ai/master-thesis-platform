@@ -5,3 +5,5 @@ reportlab
 arabic-reshaper
 python-bidi
 st-gsheets-connection
+qrcode
+Pillow
