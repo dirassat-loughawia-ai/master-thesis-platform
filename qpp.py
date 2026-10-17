@@ -29,7 +29,7 @@ st.set_page_config(
 )
 
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyM9CVCiTLW5dcPZp13N4moSCpt_to-kc7o8ZPQCQPX3AjU_SV0fLXm7wNT5odtkWoyZA/exec"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxnzaSNAz4LQ7jhf6-qtdZsWS_1srSZyt3xasvJiHxdYOeTbp99rS-BO_4jiam7Q1eDQA/exec"
 
 SHEET_TEACHERS = "قائمة الأساتذة"
 SHEET_ADMINS = "كلمات مرور المسؤولين"
