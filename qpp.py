@@ -291,56 +291,62 @@ def generate_pdf_document(teacher_name, specialty, st1_name, st1_reg, st2_name, 
     return packet.getvalue()
 
 # دالة توليد إفادة تأطير المذكرات المحسنة بالكامل
-def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
+def def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
     buffer = BytesIO()
+    # تقليل الهامش السفلي إلى 15 نقطة لتقريب العناصر من نهاية الصفحة تماماً
     doc = SimpleDocTemplate(
         buffer, 
         pagesize=letter, 
         rightMargin=36, 
         leftMargin=36, 
-        topMargin=30, 
-        bottomMargin=36
+        topMargin=25, 
+        bottomMargin=15
     )
     
-    # تكبير خط الترويسة وملاءمة الأسطر
     header_style = ParagraphStyle('HeaderStyle', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER, leading=19)
-    body_style = ParagraphStyle('BodyStyle', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER, leading=26)
+    intro_style = ParagraphStyle('IntroStyle', fontName=ARABIC_FONT, fontSize=13, alignment=TA_CENTER, leading=22)
+    teacher_style = ParagraphStyle('TeacherStyle', fontName=ARABIC_FONT_BOLD, fontSize=15, alignment=TA_CENTER, leading=24)
     cell_style = ParagraphStyle('TableCell', fontName=ARABIC_FONT, fontSize=11, alignment=TA_CENTER, leading=16)
     header_cell_style = ParagraphStyle('HeaderCell', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER, textColor=colors.white)
 
     story = []
     
+    # الترويسة الرسمية
     story.append(Paragraph(reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"), header_style))
     story.append(Paragraph(reshape_arabic("وزارة التعليم العالي والبحث العلمي"), header_style))
     story.append(Paragraph(reshape_arabic("جامعة الوادي - كلية الآداب واللغات"), ParagraphStyle('UnivStyle', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER, leading=20)))
     story.append(Paragraph(reshape_arabic("قسم اللغة والأدب العربي"), header_style))
-    story.append(Spacer(1, 15))
+    story.append(Spacer(1, 12))
 
-    # توسيع جدول العنوان ليشمل كامل النص دون قص
-    title_text = Paragraph(reshape_arabic("إفادة تأطير مذكرات ماستر"), ParagraphStyle('AttTitle', fontName=ARABIC_FONT_BOLD, fontSize=22, alignment=TA_CENTER, textColor=colors.HexColor('#0f172a')))
-    title_table = Table([[title_text]], colWidths=[480])
+    # إطار العنوان (توسيع العرض وزيادة الحواشي لمنع التصاق الخط بالنص)
+    title_text = Paragraph(reshape_arabic("إفادة تأطير مذكرات ماستر"), ParagraphStyle('AttTitle', fontName=ARABIC_FONT_BOLD, fontSize=21, alignment=TA_CENTER, textColor=colors.HexColor('#0f172a')))
+    title_table = Table([[title_text]], colWidths=[520])
     title_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f1f5f9')),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
         ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
     ]))
     story.append(title_table)
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 15))
 
-    # تنسيق وترتيب النص بدون تداخل الوسوم
-    reshaped_tch = reshape_arabic(teacher_name)
-    part1 = reshape_arabic("يفيد رئيس قسم اللغة والأدب العربي أن الأستاذ(ة):")
-    part2 = reshape_arabic("يشرف على مذكرات ماستر خلال السنة الجامعية 2026-2027 كما هو مبين أدناه:")
-    intro_txt = f"{part1} <b>{reshaped_tch}</b> {part2}"
-    
-    story.append(Paragraph(intro_txt, body_style))
+    # الجملة الافتتاحية مقسمة ومترتبة على 3 أسطر
+    line1 = reshape_arabic("يفيد السيد رئيس قسم اللغة والأدب العربي")
+    line2 = reshape_arabic("أن الأستاذ(ة):") + f" <b>{reshape_arabic(teacher_name)}</b>"
+    line3 = reshape_arabic("يـ/تـشرف على مذكرات ماستر خلال السنة الجامعية 2026-2027 كما هو مبين أدناه:")
+
+    story.append(Paragraph(line1, intro_style))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph(line2, teacher_style))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph(line3, intro_style))
     story.append(Spacer(1, 15))
 
     qr_memos_info = f"إفادة تأطير مذكرات ماستر\nالأستاذ المشرف: {teacher_name}\nعدد المذكرات: {len(df_teacher_memos)}\nتاريخ الإصدار: {datetime.now().strftime('%Y-%m-%d')}"
 
+    # جدول المذكرات
     if not df_teacher_memos.empty:
         raw_headers = ["عنوان المذكرة", "التخصص", "الرقم"]
         table_data = [[Paragraph(reshape_arabic(h), header_cell_style) for h in raw_headers]]
@@ -360,7 +366,7 @@ def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
             ]
             table_data.append(row_cells)
 
-        t = Table(table_data, colWidths=[330, 170, 40])
+        t = Table(table_data, colWidths=[340, 160, 35])
         t.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -372,32 +378,33 @@ def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
         ]))
         story.append(t)
 
-    # إضافة مسافة لدفع التاريخ والتوقيعات إلى أسفل الورقة بمعدل 5 أسطر
-    story.append(Spacer(1, 80))
+    # دفع التوقيعات والتاريخ لأسفل الورقة بمسافة حسابية دقيقة
+    story.append(Spacer(1, 130))
     curr_date_str = datetime.now().strftime("%Y/%m/%d")
     story.append(Paragraph(reshape_arabic(f"حرر بالوادي في: {curr_date_str}"), ParagraphStyle('DateStyle', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER)))
-    story.append(Spacer(1, 15))
+    story.append(Spacer(1, 10))
 
-    # بناء الكودبار كـ عنصر صورة ReportLab (Image)
+    # إضافة الـ QR Code والتوقيعات في أسفل الورقة مباشرة
     qr_att_buf = generate_qr_code_image(qr_memos_info)
-    qr_img = Image(qr_att_buf, width=70, height=70)
+    qr_img = Image(qr_att_buf, width=65, height=65)
     
     sig_table_data = [
         [
-            Paragraph(reshape_arabic("رئيس القسم"), ParagraphStyle('SigLeft', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER)),
-            Paragraph(reshape_arabic("رمز التحقق (QR Code)"), ParagraphStyle('SigCenter', fontName=ARABIC_FONT_BOLD, fontSize=11, alignment=TA_CENTER)),
-            Paragraph(reshape_arabic("مسؤول الشعبة"), ParagraphStyle('SigRight', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER))
+            Paragraph(reshape_arabic("رئيس القسم"), ParagraphStyle('SigLeft', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER)),
+            Paragraph(reshape_arabic("رمز التحقق (QR Code)"), ParagraphStyle('SigCenter', fontName=ARABIC_FONT_BOLD, fontSize=10, alignment=TA_CENTER)),
+            Paragraph(reshape_arabic("مسؤول الشعبة"), ParagraphStyle('SigRight', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER))
         ],
         [
-            Paragraph("", body_style),
+            Paragraph("", intro_style),
             qr_img,
-            Paragraph("", body_style)
+            Paragraph("", intro_style)
         ]
     ]
-    sig_table = Table(sig_table_data, colWidths=[180, 180, 180])
+    sig_table = Table(sig_table_data, colWidths=[180, 170, 180])
     sig_table.setStyle(TableStyle([
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
     ]))
     story.append(sig_table)
 
