@@ -55,10 +55,7 @@ SYS_ADMIN_PASS = "19822026"
 AMAZING_COUNTER_HTML = """
 <div style="text-align: center; padding: 5px;">
     <!-- يمكنك استبدال الرابط أدناه برابط العداد الخاص بك من موقع Amazing Counter -->
-    <a href="https://www.amazingcounters.com" target="_blank">
-        <img src="https://cc.amazingcounters.com/counter.php?i=3255412&c=9766549" alt="Amazing Counters" border="0">
-    </a>
-</div>
+<div align="center"><a href="http://www.amazingcounters.com"><img border="0" src="http://cc.amazingcounters.com/counter.php?i=3202262&c=9607099" alt="AmazingCounters.com"></a></div>
 """
 
 def prevent_sleep_mode():
