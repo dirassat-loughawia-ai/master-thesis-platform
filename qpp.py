@@ -35,7 +35,7 @@ st.set_page_config(
 GITHUB_RAW_BASE_URL = "https://raw.githubusercontent.com/USERNAME/REPOSITORY/main/" 
 
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyM9CVCiTLW5dcPZp13N4moSCpt_to-kc7o8ZPQCQPX3AjU_SV0fLXm7wNT5odtkWoyZA/exec"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxHO9seMhwVAooTX5vkfemqrh7_6-FBmOaLckcmRY-L1A0j-mQifL1yA_N2ZFWGIerH7A/exec"
 
 SHEET_TEACHERS = "قائمة الأساتذة"
 SHEET_ADMINS = "كلمات مرور المسؤولين"
