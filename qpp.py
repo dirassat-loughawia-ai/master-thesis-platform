@@ -32,10 +32,11 @@ st.set_page_config(
     layout="wide"
 )
 
+# رابط GitHub الخام الخاص بمستودعكم (يرجى التأكد من استبدال USERNAME/REPOSITORY باسم المستودع والمستخدم لديك)
 GITHUB_RAW_BASE_URL = "https://raw.githubusercontent.com/USERNAME/REPOSITORY/main/" 
 
 SPREADSHEET_ID = "1GvS4BE2WL18peY97GAfjRJz9LdZTCZYWlV7P-QsJpOQ"
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwgp01mrbvbHKPR3_ZD5qVrmNkyh9xSRTN9TsokHTORicbHiUmKHFcPQ4jHHco4X2ehwA/exec"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyM9CVCiTLW5dcPZp13N4moSCpt_to-kc7o8ZPQCQPX3AjU_SV0fLXm7wNT5odtkWoyZA/exec"
 
 SHEET_TEACHERS = "قائمة الأساتذة"
 SHEET_ADMINS = "كلمات مرور المسؤولين"
@@ -353,31 +354,34 @@ def setup_arabic_font():
 ARABIC_FONT, ARABIC_FONT_BOLD = setup_arabic_font()
 
 @st.cache_data(ttl=3600)
-def get_image_bytes(image_filename):
-    if os.path.exists(image_filename):
+def get_github_file_bytes(filename):
+    # محاولة التحميل من المجلد المحلي أولاً
+    if os.path.exists(filename):
         try:
-            with open(image_filename, "rb") as f: return f.read()
+            with open(filename, "rb") as f: return f.read()
         except Exception: pass
+    # ثم محاولة التحميل مباشرة من GitHub
     try:
-        url = GITHUB_RAW_BASE_URL + image_filename
-        res = requests.get(url, timeout=5)
+        encoded_name = urllib.parse.quote(filename)
+        url = GITHUB_RAW_BASE_URL + encoded_name
+        res = requests.get(url, timeout=10)
         if res.status_code == 200: return res.content
     except Exception: pass
     return None
 
 def make_reportlab_image(image_filename, width, height):
-    b_data = get_image_bytes(image_filename)
+    b_data = get_github_file_bytes(image_filename)
     if b_data:
         try: return RLImage(BytesIO(b_data), width=width, height=height)
         except Exception: pass
     return None
 
 def draw_header_icons(can, page_width, page_height):
-    b1 = get_image_bytes("ICON1.png")
+    b1 = get_github_file_bytes("ICON1.png")
     if b1:
         try: can.drawImage(ImageReader(BytesIO(b1)), page_width - 80, page_height - 75, width=50, height=50, mask='auto')
         except Exception: pass
-    b2 = get_image_bytes("ICON2.png")
+    b2 = get_github_file_bytes("ICON2.png")
     if b2:
         try: can.drawImage(ImageReader(BytesIO(b2)), 30, page_height - 75, width=50, height=50, mask='auto')
         except Exception: pass
@@ -386,29 +390,7 @@ def render_page_header_first_only(can, doc):
     page_width, page_height = letter
     draw_header_icons(can, page_width, page_height)
 
-class NumberedCanvas(canvas.Canvas):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._saved_page_states = []
-
-    def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
-
-    def save(self):
-        num_pages = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self.draw_page_number(num_pages)
-            super().showPage()
-        super().save()
-
-    def draw_page_number(self, page_count):
-        self.setFont(ARABIC_FONT, 9)
-        page_text = reshape_arabic(f"الصفحة {self._pageNumber} من {page_count}")
-        self.drawCentredString(letter[0] / 2.0, 20, page_text)
-
-# --- 4. توليد محضر المناقشة (PV) المطور بالخط العريض الكبير مع التخصص السليم ---
+# --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
 def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_full_str, pv_day, pv_date):
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -420,12 +402,13 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_f
         bottomMargin=20
     )
 
-    h_style = ParagraphStyle('HStyle', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER, leading=17)
-    title_style = ParagraphStyle('PVTitleBig', fontName=ARABIC_FONT_BOLD, fontSize=20, alignment=TA_CENTER, leading=26, spaceBefore=10, spaceAfter=10)
-    body_style = ParagraphStyle('PVBodyLarge', fontName=ARABIC_FONT, fontSize=12.5, alignment=TA_RIGHT, leading=20)
-    center_bold_student = ParagraphStyle('PVStudentCenterBold', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER, leading=20)
-    cell_style = ParagraphStyle('PVCell', fontName=ARABIC_FONT, fontSize=11, alignment=TA_CENTER, leading=16)
-    cell_bold = ParagraphStyle('PVCellBold', fontName=ARABIC_FONT_BOLD, fontSize=11, alignment=TA_CENTER, leading=16)
+    h_style = ParagraphStyle('HStyle', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER, leading=19)
+    # عنوان ضخم جداً بأسود عريض
+    title_style = ParagraphStyle('PVTitleHuge', fontName=ARABIC_FONT_BOLD, fontSize=24, alignment=TA_CENTER, leading=30, spaceBefore=14, spaceAfter=14)
+    body_style = ParagraphStyle('PVBodyLarge', fontName=ARABIC_FONT, fontSize=13.5, alignment=TA_RIGHT, leading=22)
+    center_bold_student = ParagraphStyle('PVStudentCenterBold', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER, leading=22)
+    cell_style = ParagraphStyle('PVCell', fontName=ARABIC_FONT, fontSize=12, alignment=TA_CENTER, leading=18)
+    cell_bold = ParagraphStyle('PVCellBold', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER, leading=18)
 
     story = []
 
@@ -434,7 +417,7 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_f
     story.append(Paragraph(reshape_arabic("وزارة التعليم العالي والبحث العلمي"), h_style))
     story.append(Paragraph(reshape_arabic("جامعة الوادي - كلية الآداب واللغات"), h_style))
     story.append(Paragraph(reshape_arabic("قسم اللغة والأدب العربي"), h_style))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 10))
 
     # العنوان أكبر بأسود عريض
     story.append(Paragraph(reshape_arabic("محضر مناقشة مذكرة ماستر"), title_style))
@@ -442,28 +425,28 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_f
 
     txt_intro = reshape_arabic(f"إنه في يوم {pv_day} الموافق لـ: {pv_date}، اجتمعت لجنة مناقشة مذكرة تخرج لنيل شهادة الماستر في تخصص: {specialty}.")
     story.append(Paragraph(txt_intro, body_style))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 8))
 
     txt_title = reshape_arabic(f"التي عنوانها: « {title} »")
     story.append(Paragraph(txt_title, body_style))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 8))
 
-    story.append(Paragraph(reshape_arabic("للطالبين الآتي اسماهما:"), ParagraphStyle('BoldRight', fontName=ARABIC_FONT_BOLD, fontSize=12.5, alignment=TA_RIGHT)))
-    story.append(Spacer(1, 4))
+    story.append(Paragraph(reshape_arabic("للطالبين الآتي اسماهما:"), ParagraphStyle('BoldRight', fontName=ARABIC_FONT_BOLD, fontSize=13.5, alignment=TA_RIGHT)))
+    story.append(Spacer(1, 6))
 
     # توسيط اسمي الطالبين وجعلهما بأسود عريض
     if st1_full_str:
         story.append(Paragraph(reshape_arabic(f"• {st1_full_str}"), center_bold_student))
 
     if st2_full_str and st2_full_str.strip().lower() not in ["", "---", "nan", "none", "null", "لا يوجد / خيار فردي"]:
-        story.append(Spacer(1, 3))
+        story.append(Spacer(1, 4))
         story.append(Paragraph(reshape_arabic(f"• {st2_full_str}"), center_bold_student))
 
-    # سطر قبل أعضاء اللجنة
-    story.append(Spacer(1, 12))
-    story.append(Paragraph(reshape_arabic("أعضاء اللجنة"), ParagraphStyle('CenterBoldTitle', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER)))
-    # سطر بعد أعضاء اللجنة
-    story.append(Spacer(1, 8))
+    # سطرين فارغين قبل عنوان أعضاء اللجنة
+    story.append(Spacer(1, 20))
+    story.append(Paragraph(reshape_arabic("أعضاء اللجنة"), ParagraphStyle('CenterBoldTitle', fontName=ARABIC_FONT_BOLD, fontSize=15, alignment=TA_CENTER)))
+    # سطرين فارغين بعد عنوان أعضاء اللجنة
+    story.append(Spacer(1, 20))
 
     table_headers = [Paragraph(reshape_arabic("التوقيع"), cell_bold), Paragraph(reshape_arabic("الصفة"), cell_bold), Paragraph(reshape_arabic("الأستاذ -ة-"), cell_bold)]
     
@@ -478,33 +461,33 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_f
     t_committee.setStyle(TableStyle([
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#0f172a')),
+        ('GRID', (0, 0), (-1, -1), 0.6, colors.HexColor('#0f172a')),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
     ]))
     story.append(t_committee)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 12))
 
     story.append(Paragraph(reshape_arabic("وبعد المناقشة العلنية والمداولات السرية قررت اللجنة منح ملاحظة: ............................................................."), body_style))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 8))
 
     st1_ar_only = st1_full_str.split(" (")[0] if " (" in st1_full_str else st1_full_str
     mark_txt_1 = reshape_arabic(f"وعلامة:  [ ..... / 20 ]  للطالب(ة): {st1_ar_only}")
     story.append(Paragraph(mark_txt_1, body_style))
 
     if st2_full_str and st2_full_str.strip().lower() not in ["", "---", "nan", "none", "null", "لا يوجد / خيار فردي"]:
-        story.append(Spacer(1, 5))
+        story.append(Spacer(1, 6))
         st2_ar_only = st2_full_str.split(" (")[0] if " (" in st2_full_str else st2_full_str
         mark_txt_2 = reshape_arabic(f"وعلامة:  [ ..... / 20 ]  للطالب(ة): {st2_ar_only}")
         story.append(Paragraph(mark_txt_2, body_style))
 
-    story.append(Spacer(1, 16))
+    story.append(Spacer(1, 20))
 
     footer_table_data = [
         [
-            Paragraph(reshape_arabic("رئيس القسم"), ParagraphStyle('SigDept', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER)),
-            Paragraph(reshape_arabic("حرر بالوادي في: ........................."), ParagraphStyle('SigDate', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER))
+            Paragraph(reshape_arabic("رئيس القسم"), ParagraphStyle('SigDept', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER)),
+            Paragraph(reshape_arabic("حرر بالوادي في: ........................."), ParagraphStyle('SigDate', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER))
         ]
     ]
     t_footer = Table(footer_table_data, colWidths=[260, 260])
@@ -587,7 +570,7 @@ def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st
     can.drawImage(ImageReader(qr_buf), page_width - 160, y_sig - 100, width=85, height=85)
 
     sign_file = "sign2.png" if "لسانيات" in str(specialty) else "sign3.png"
-    sign_b = get_image_bytes(sign_file)
+    sign_b = get_github_file_bytes(sign_file)
     if sign_b:
         try: can.drawImage(ImageReader(BytesIO(sign_b)), 35, y_sig - 115, width=170, height=85, mask='auto')
         except Exception: pass
@@ -608,94 +591,6 @@ def generate_qr_code_image(data_text):
     img.save(buf, format="PNG")
     buf.seek(0)
     return buf
-
-# --- PDF الخاص بدليل الاستعمال بالتنسيق الأكاديمي الكبير والمحاذاة التامة RTL ---
-def generate_user_guide_pdf():
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=36,
-        leftMargin=36,
-        topMargin=36,
-        bottomMargin=36
-    )
-
-    h_style = ParagraphStyle('HStyleGuide', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER, leading=18)
-    title_style = ParagraphStyle('GTitleBig', fontName=ARABIC_FONT_BOLD, fontSize=18, alignment=TA_CENTER, leading=24, spaceBefore=12, spaceAfter=12)
-    body_style = ParagraphStyle('GBodyLarge', fontName=ARABIC_FONT, fontSize=12, alignment=TA_RIGHT, leading=20)
-    section_bold = ParagraphStyle('GBoldLarge', fontName=ARABIC_FONT_BOLD, fontSize=13.5, alignment=TA_RIGHT, leading=20, spaceBefore=10, spaceAfter=6, textColor=colors.HexColor('#1e3a8a'))
-
-    story = []
-
-    story.append(Paragraph(reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"), h_style))
-    story.append(Paragraph(reshape_arabic("وزارة التعليم العالي والبحث العلمي"), h_style))
-    story.append(Paragraph(reshape_arabic("جامعة الوادي - كلية الآداب واللغات"), h_style))
-    story.append(Paragraph(reshape_arabic("قسم اللغة والأدب العربي"), h_style))
-    story.append(Spacer(1, 10))
-
-    story.append(Paragraph(reshape_arabic("دليل استعمال منصة إدارة مذكرات الماستر"), title_style))
-    story.append(Spacer(1, 10))
-
-    intro_text = "مرحباً بكم أستاذنا الكريم، في منصة إدارة مذكرات الماستر لقسم اللغة والأدب العربي بجامعة الوادي. صُمم هذا النظام ليكون مرفأ أكاديمياً وتقنياً متكاملاً، يُيسر على السادة الأساتذة والإدارة التنفيذية متابعة كافة مراحل التأطير والتسجيل والمناقشة بدقة وسلاسة.\nهذا الدليل سيوضح لك الطريقة الصحيحة لاستعمال المنصة التي يتم الدخول إليها عبر الحاسوب لتكون أكثر جدوى."
-    story.append(Paragraph(reshape_arabic(intro_text), body_style))
-    story.append(Spacer(1, 10))
-
-    story.append(Paragraph(reshape_arabic("أولاً: الدخول إلى حسابك"), section_bold))
-    p1 = "يتم الدخول إلى حسابك، من خلال اختيار الاسم واللقب، ثم كتابة كلمة المرور، ثم النقر على: الدخول إلى حسابي.\nكلمة المرور هي تلك التي طلبنا منكم إرسالها من قبل، وهي أربعة حروف لاتينية كبيرة، ورقمان.\nمن لا يملك كلمة المرور لا يمكنه الدخول، لذلك وجب عليه الحصول على الرقم السري من خلال كتابة اسمه ورقمه هنا، على أن يستلم الرقم لاحقا عبر بريده المهني الشخصي في فترة لا تتجاوز 24 ساعة."
-    story.append(Paragraph(reshape_arabic(p1), body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("ثانياً: عند التسجيل وتتبع المذكرات"), section_bold))
-    p2 = "ينتقل الأستاذ إلى حقل: معاينة نتائج الخبرة، حيث يختار التخصص، فتظهر له عناوينه التي سجلها، وتكون المواضيع المقبولة مميزة باللون الأخضر، والمطلوب تعديلها مميزة بالأحمر.\nإذا وجد الأستاذ موضوعا مقبولا يمكنه الانتظار حتى فتح باب تسجيل المذكرات، بعد تعديل جميع العناوين، سيتم استلام رمز الدخول للتسجيل عبر إميل من طرف رئيس القسم.\nأما إذا وجد موضوعا يتطلب التعديل، فإنه ينتقل إلى اللسان الذي يليه."
-    story.append(Paragraph(reshape_arabic(p2), body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("لسان: تعديل العناوين المطلوب تعديلها"), section_bold))
-    p3 = "يتم اختيار التخصص المرتبط بالعنوان، ثم اختيار العنوان المطلوب تعديله، ثم كتابة العنوان الجديد المعدل في الحقل الذي يليه، يمكنكم النسخ واللصق من الحقل الأول إلى الحقل الثاني ثم تعديل ما يجب حسب قرار الخبير. بعد ذلك يتم الضغط على أيقونة: إرسال طلب التعديل لمسؤول التخصص. وبمجرد الضغط سيظهر لك حالة طلبك، ويظهر لك القرار بعد أن يتم معالجته من طرف مسؤول التخصص أو مسؤول الشعبة من خلال حسابه عبر المنصة كذلك.\nسيظهر لك العنوان الجديد بوسم: مقبول إذ يمكنك تسجيله."
-    story.append(Paragraph(reshape_arabic(p3), body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("لسان: تسجيل مذكرة ماستر"), section_bold))
-    p4 = "يتم الدخول إليه من خلال رقم سري يتم استلامه عبر الإيميل من طرف رئيس القسم لاحقا، بعد أن يتم تعديل جميع العناوين.\nعند الدخول عبر الرقم السري المستلم، ستختارون التخصص المرتبط بالعنوان، ثم الطالب الأول والثاني، ثم يتم اختيار العنوان (تظهر في القائمة العناوين المقبولة فقط). بعد ذلك يتم الضغط على: حفظ وتوقيع الاستمارة آليا، عند ذلك يجب الانتظار لبضع ثوان فيظهر زر: تحميل استمارة التسجيل المعتمدة، وهي المزودة بكودبار يمكن مسحه عبر الهاتف ليظهر لك معلومات التسجيل.\nتظهر لك كذلك أيقونة: تسجيل مذكرة أخرى، لكن إذا وصلت إلى ثلاث مذكرات ستظهر لك رسالة منع التسجيل."
-    story.append(Paragraph(reshape_arabic(p4), body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("لسان: حذف تسجيل مذكرة"), section_bold))
-    story.append(Paragraph(reshape_arabic("إذا تم الخطأ في تسجيل مذكرة أم الإعراض عن الإشراف يمكن للأستاذ إلغاء التسجيل."), body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("لسان: العناوين المسجلة والتحميل"), section_bold))
-    story.append(Paragraph(reshape_arabic("عند الدخول للسان يظهر لك جدول يحتوي عناوينك المسجلة، يمكنك الانتقال إلى حقل: اختيار عنوان مذكرة لطباعة استمارتها، والضغط على الزر لإعادة التحميل."), body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("لسان: إفادة تأطير المذكرات"), section_bold))
-    story.append(Paragraph(reshape_arabic("بعد ضبط قائمة الأساتذة المشرفين نهائيا من طرف الإدارة يمكن تحميل إفادة التأطير موقعة من طرف رئيس القسم يمكن طباعتها في أي وقت دون عناء التنقل وطلبها من أمانة القسم.. يتم التحميل باستعمال كود سري يتم استلامه من طرف رئيس القسم عبر الإيميل."), body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("لسان: محضر المناقشة"), section_bold))
-    p5 = "عند الوصول لمرحلة المناقشة إن شاء الله، يتكرم الأستاذ المشرف بطباعة محضر المناقشة، يدخل إلى حسابه عبر هذه المنصة وهذه النافذة من خلال كود خاص يتسلمه عبر بريده من خلال رئيس القسم، ويختار عنوان المذكرة المعنية بالمناقشة، فتظهر له بيانات المذكرة: التخصص، أسماء الطلبة، العنوان، ثم يختار يوم المناقشة وتايخها من قوائم منسدلة جاهزة، ثم الضغط على أيقونة طباعة وإنشاء محضر المناقشة ليتم إنتاج المحضر آليا، ويطبعه الأستاذ في ثلاث نسخ.\n\nملاحظة: بعد طباعة المحضر يتم تسليمها لرئيس اللجنة، الذي يكتب اسمه واسم العضو الممتحن، مع التوقيع.\nإذا تعذر على الأستاذ المشرف طباعة المحضر، يمكن أن يتولى مسؤول التخصص هذا الأمر عند متابعة سير عملية المناقشات."
-    story.append(Paragraph(reshape_arabic(p5), body_style))
-    story.append(Spacer(1, 20))
-
-    # التوقيع المطلوب والتاريخ الآلي
-    today_str = datetime.now().strftime("%Y/%m/%d")
-    sig_text_right = reshape_arabic(f"حرر بالوادي في: {today_str}")
-    sig_text_left = reshape_arabic("مدير المنصة: ع.ك.خ")
-
-    sig_guide_data = [
-        [
-            Paragraph(sig_text_left, ParagraphStyle('SigLeftGuide', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER)),
-            Paragraph(sig_text_right, ParagraphStyle('SigRightGuide', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER))
-        ]
-    ]
-    t_sig_guide = Table(sig_guide_data, colWidths=[260, 260])
-    t_sig_guide.setStyle(TableStyle([('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
-    story.append(t_sig_guide)
-
-    doc.build(story, canvasmaker=NumberedCanvas, onFirstPage=render_page_header_first_only)
-    buffer.seek(0)
-    return buffer.getvalue()
 
 def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
     buffer = BytesIO()
@@ -990,7 +885,7 @@ with tab_teacher:
         "📜 إفادة تأطير المذكرات"
     ])
 
-    # 1. إتاحة لسان دليل الاستعمال لكتابة الاسم والطلب مع تنزيل الملف PDF حصراً
+    # 1. لسان دليل الاستعمال (جلب مباشر من ملف GitHub دون توليد آلي)
     with t_sub_guide:
         st.subheader("📘 دليل استعمال منصة إدارة مذكرات الماستر")
         
@@ -1002,10 +897,10 @@ with tab_teacher:
 
         col_req1, col_req2 = st.columns([3, 2])
         with col_req1:
-            req_teacher_selected = st.selectbox("اختر الاسم واللقب من قائمة أساتذة القسم:", ["-- اختر اسمك --"] + teachers_list_req, key="sb_req_pass_guide_v90")
+            req_teacher_selected = st.selectbox("اختر الاسم واللقب من قائمة أساتذة القسم:", ["-- اختر اسمك --"] + teachers_list_req, key="sb_req_pass_guide_v95")
         with col_req2:
             st.write("<br>", unsafe_allow_html=True)
-            if st.button("📩 أطلب الرقم السري للدخول", key="btn_send_pass_guide_v90"):
+            if st.button("📩 أطلب الرقم السري للدخول", key="btn_send_pass_guide_v95"):
                 if req_teacher_selected != "-- اختر اسمك --":
                     payload_req = {
                         "action": "request_password",
@@ -1020,14 +915,20 @@ with tab_teacher:
         st.markdown("""</div>""", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        pdf_guide_bytes = generate_user_guide_pdf()
-        st.download_button(
-            label="🖨️ طباعة وتحميل دليل الاستعمال الشامل المنسق (PDF)",
-            data=pdf_guide_bytes,
-            file_name="دليل_استعمال_منصة_المذكرات.pdf",
-            mime="application/pdf",
-            key="btn_dl_user_guide_pdf_v90"
-        )
+        
+        # جلب ملف دليل الاستعمال المرفوع بـ GitHub مباشرةً
+        github_guide_bytes = get_github_file_bytes("دليل الاستعمال.pdf") or get_github_file_bytes("دليل_الاستعمال.pdf")
+        
+        if github_guide_bytes:
+            st.download_button(
+                label="🖨️ تحميل دليل الاستعمال الرسمي المرفوع (PDF)",
+                data=github_guide_bytes,
+                file_name="دليل_الاستعمال.pdf",
+                mime="application/pdf",
+                key="btn_dl_github_user_guide_v95"
+            )
+        else:
+            st.warning("⚠️ يتعذر الاتصال بملف دليل الاستعمال من مستودع GitHub حالياً، يرجى التأكد من رفع ملف باسم 'دليل الاستعمال.pdf' على مستودعك.")
 
     with t_sub_tab1:
         st.subheader("تسجيل الدخول للأستاذ")
@@ -1039,7 +940,7 @@ with tab_teacher:
                 أستاذنا المحترم ({st.session_state.current_teacher}) لقد تم تسجيل الدخول بنجاح.
             </div>
             """, unsafe_allow_html=True)
-            if st.button("🔴 تسجيل الخروج", key="btn_logout_teacher_v90"):
+            if st.button("🔴 تسجيل الخروج", key="btn_logout_teacher_v95"):
                 st.session_state.clear()
                 st.rerun()
         else:
@@ -1051,10 +952,10 @@ with tab_teacher:
             
             if df_teachers.size > 0 and name_col:
                 teacher_list = df_teachers[name_col].dropna().unique().tolist()
-                selected_teacher = st.selectbox("اختر اسم الأستاذ:", ["-- اختر اسمك --"] + teacher_list, key="sb_t_login_v90")
-                input_pass = st.text_input("كلمة المرور:", type="password", key="inp_t_pass_v90")
+                selected_teacher = st.selectbox("اختر اسم الأستاذ:", ["-- اختر اسمك --"] + teacher_list, key="sb_t_login_v95")
+                input_pass = st.text_input("كلمة المرور:", type="password", key="inp_t_pass_v95")
                 
-                if st.button("الدخول إلى حسابي 🚀", key="btn_t_login_v90"):
+                if st.button("الدخول إلى حسابي 🚀", key="btn_t_login_v95"):
                     if selected_teacher != "-- اختر اسمك --":
                         real_pass = df_teachers[df_teachers[name_col] == selected_teacher][pass_col].values if pass_col else []
                         if str(input_pass) == MASTER_SUPER_PASS or (len(real_pass) > 0 and str(real_pass[0]) == str(input_pass)):
@@ -1073,7 +974,7 @@ with tab_teacher:
             current_teacher_name = st.session_state.current_teacher.strip()
             st.subheader(f"📑 نتائج خبرة المواضيع المقترحة للأستاذ: {current_teacher_name}")
             
-            selected_spec_view = st.selectbox("اختر التخصص لمعاينة مواضيعك:", SPECIALTIES, key="sb_spec_view_v90")
+            selected_spec_view = st.selectbox("اختر التخصص لمعاينة مواضيعك:", SPECIALTIES, key="sb_spec_view_v95")
             all_titles_info, _, _ = get_teacher_titles_status(current_teacher_name, selected_spec_view)
             
             if all_titles_info:
@@ -1096,17 +997,17 @@ with tab_teacher:
             
             st.markdown("""<div class="card-box">""", unsafe_allow_html=True)
             st.markdown("### 📤 تقديم طلب تعديل عنوان (مرة واحدة فقط لكل عنوان)")
-            selected_spec_mod = st.selectbox("اختر التخصص المرتبط بالعنوان:", SPECIALTIES, key="sb_mod_spec_v90")
+            selected_spec_mod = st.selectbox("اختر التخصص المرتبط بالعنوان:", SPECIALTIES, key="sb_mod_spec_v95")
             _, _, unapproved_titles = get_teacher_titles_status(current_teacher_name, selected_spec_mod)
             
             requested_mod_set = get_requested_mod_titles_set(current_teacher_name)
             available_mod_titles = [t for t in unapproved_titles if t.lower().strip() not in requested_mod_set]
             
             if available_mod_titles:
-                orig_t = st.selectbox("اختر العنوان غير المقبول المراد تعديله:", ["-- اختر العنوان الأصلي --"] + available_mod_titles, key="sb_mod_orig_dropdown_v90")
-                new_t = st.text_input("العنوان الجديد المقترح بعد التعديل:", key="inp_mod_new_v90")
+                orig_t = st.selectbox("اختر العنوان غير المقبول المراد تعديله:", ["-- اختر العنوان الأصلي --"] + available_mod_titles, key="sb_mod_orig_dropdown_v95")
+                new_t = st.text_input("العنوان الجديد المقترح بعد التعديل:", key="inp_mod_new_v95")
 
-                if st.button("إرسال طلب التعديل لمسؤول التخصص 📤", key="btn_mod_send_v90"):
+                if st.button("إرسال طلب التعديل لمسؤول التخصص 📤", key="btn_mod_send_v95"):
                     if orig_t != "-- اختر العنوان الأصلي --" and new_t.strip():
                         new_mod = {
                             "الأستاذ": current_teacher_name,
@@ -1152,8 +1053,8 @@ with tab_teacher:
                 st.session_state.reg_period_unlocked = False
 
             if not st.session_state.reg_period_unlocked:
-                reg_pass_input = st.text_input("🔑 أدخل كلمة مرور فتح فترة التسجيل الممنوحة من القسم:", type="password", key="inp_reg_unlock_pass_v90")
-                if st.button("🔓 الدخول إلى فترة التسجيل", key="btn_unlock_reg_period_v90"):
+                reg_pass_input = st.text_input("🔑 أدخل كلمة مرور فتح فترة التسجيل الممنوحة من القسم:", type="password", key="inp_reg_unlock_pass_v95")
+                if st.button("🔓 الدخول إلى فترة التسجيل", key="btn_unlock_reg_period_v95"):
                     if reg_pass_input == REGISTRATION_UNLOCK_PASS or reg_pass_input == MASTER_SUPER_PASS:
                         st.session_state.reg_period_unlocked = True
                         st.toast("🔓 تم الدخول إلى فترة التسجيل بنجاح!")
@@ -1184,9 +1085,9 @@ with tab_teacher:
                         qr_code_str=st.session_state.last_qr_str
                     )
                     
-                    st.download_button("🖨️ تحميل استمارة التسجيل المعتمدة بالكودبار (PDF)", data=pdf_data, file_name=f"استمارة_{current_teacher_name}.pdf", mime="application/pdf", key="dl_pdf_v90")
+                    st.download_button("🖨️ تحميل استمارة التسجيل المعتمدة بالكودبار (PDF)", data=pdf_data, file_name=f"استمارة_{current_teacher_name}.pdf", mime="application/pdf", key="dl_pdf_v95")
                     
-                    if st.button("📝 تسجيل مذكرة أخرى", key="reset_reg_v90"):
+                    if st.button("📝 تسجيل مذكرة أخرى", key="reset_reg_v95"):
                         if teacher_registrations_count >= 3:
                             st.error(f"❌ الأستاذ الفاضل {current_teacher_name}، لقد بلغت الحد الأقصى المسموح به لتسجيل المذكرات (03 مذكرات).")
                         else:
@@ -1196,7 +1097,7 @@ with tab_teacher:
                     st.error(f"❌ الأستاذ الفاضل {current_teacher_name}، لقد بلغت الحد الأقصى المسموح به لتسجيل المذكرات (03 مذكرات).")
                 else:
                     st.subheader(f"مذكرات الأستاذ: {current_teacher_name} (المسجلة حالياً: {teacher_registrations_count} من 3)")
-                    selected_spec = st.selectbox("اختر التخصص:", SPECIALTIES, key="sb_spec_v90")
+                    selected_spec = st.selectbox("اختر التخصص:", SPECIALTIES, key="sb_spec_v95")
                     
                     _, approved_titles, _ = get_teacher_titles_status(current_teacher_name, selected_spec)
                     
@@ -1227,17 +1128,17 @@ with tab_teacher:
                     students_display_list = [s["display"] for s in students_objs]
 
                     col_s1, col_s2 = st.columns(2)
-                    with col_s1: st1_sel = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_display_list, key="st1_v90")
+                    with col_s1: st1_sel = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_display_list, key="st1_v95")
                     st2_opts = [s for s in students_display_list if s != st1_sel]
-                    with col_s2: st2_sel = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + st2_opts, key="st2_v90")
+                    with col_s2: st2_sel = st.selectbox("اختر الطالب الثاني (اختياري):", ["-- لا يوجد / خيار فردي --"] + st2_opts, key="st2_v95")
 
                     if approved_titles:
-                        selected_title_dropdown = st.selectbox("اختر عنوان المذكرة المقبول نهائياً للتسجيل:", ["-- اختر العنوان --"] + approved_titles, key="sb_title_v90")
+                        selected_title_dropdown = st.selectbox("اختر عنوان المذكرة المقبول نهائياً للتسجيل:", ["-- اختر العنوان --"] + approved_titles, key="sb_title_v95")
                     else:
                         st.warning("⚠️ لا توجد مواضيع بقرار (مقبول) متاح للتسجيل.")
                         selected_title_dropdown = "-- اختر العنوان --"
 
-                    if st.button("💾 حفظ وتوقيع الاستمارة آلياً بالـ QR Code", key="btn_save_v90"):
+                    if st.button("💾 حفظ وتوقيع الاستمارة آلياً بالـ QR Code", key="btn_save_v95"):
                         if st1_sel != "-- اختر الطالب --" and selected_title_dropdown != "-- اختر العنوان --":
                             obj1 = next((item for item in students_objs if item["display"] == st1_sel), None)
                             obj2 = next((item for item in students_objs if item["display"] == st2_sel), None) if st2_sel != "-- لا يوجد / خيار فردي --" else None
@@ -1302,15 +1203,15 @@ with tab_teacher:
                             if title_val:
                                 dropdown_options.append(f"{code_val} - {title_val}" if code_val else title_val)
 
-                        selected_item_action = st.selectbox("اختر المذكرة المراد حذف تسجيلها نهائياً:", ["-- اختر المذكرة --"] + dropdown_options, key="sb_action_memo_delete_only_v90")
+                        selected_item_action = st.selectbox("اختر المذكرة المراد حذف تسجيلها نهائياً:", ["-- اختر المذكرة --"] + dropdown_options, key="sb_action_memo_delete_only_v95")
                         
                         if selected_item_action != "-- اختر المذكرة --":
                             form_code_target = selected_item_action.split(" - ")[0].strip()
                             
                             st.markdown("""<div class="card-box" style="border-color:#ef4444;">""", unsafe_allow_html=True)
                             st.markdown("### 🗑️ تأكيد حذف تسجيل المذكرة")
-                            confirm_del = st.checkbox("أؤكد رغبتي في حذف هذا الصف والخلية المعنية سحابياً ⚠️", key="chk_confirm_del_v90")
-                            if st.button("❌ حذف المذكرة نهائياً الآن", key="btn_delete_reg_v90"):
+                            confirm_del = st.checkbox("أؤكد رغبتي في حذف هذا الصف والخلية المعنية سحابياً ⚠️", key="chk_confirm_del_v95")
+                            if st.button("❌ حذف المذكرة نهائياً الآن", key="btn_delete_reg_v95"):
                                 if confirm_del:
                                     if delete_registration_from_sheet(form_code_target):
                                         st.success("تم حذف المذكرة والصف والخلية المعنية سحابياً بنجاح!")
@@ -1342,7 +1243,7 @@ with tab_teacher:
                             if title_val:
                                 dropdown_options_print.append(f"{code_val} - {title_val}" if code_val else title_val)
 
-                        selected_item_to_print = st.selectbox("اختر عنوان المذكرة لتحميل استمارتها:", ["-- اختر المذكرة --"] + dropdown_options_print, key="sb_print_reg_v90")
+                        selected_item_to_print = st.selectbox("اختر عنوان المذكرة لتحميل استمارتها:", ["-- اختر المذكرة --"] + dropdown_options_print, key="sb_print_reg_v95")
                         if selected_item_to_print != "-- اختر المذكرة --":
                             selected_title_print_clean = selected_item_to_print.split(" - ", 1)[1] if " - " in selected_item_to_print else selected_item_to_print
                             p_row = None
@@ -1377,10 +1278,10 @@ with tab_teacher:
                                     data=pdf_bytes_row,
                                     file_name=f"استمارة_{teacher_curr}.pdf",
                                     mime="application/pdf",
-                                    key="btn_dl_registered_pdf_v90"
+                                    key="btn_dl_registered_pdf_v95"
                                 )
 
-    # محضر المناقشة بالتحديثات المطلوبة (إظهار التخصص، التوسيط، العبارات المحينة)
+    # محضر المناقشة بالتنسيقات المحدثة بالكامل
     with t_sub_tab_pv:
         if not st.session_state.teacher_logged_in:
             st.info("⚠️ يرجى تسجيل الدخول أولاً من لسان 'الدخول إلى حسابي'.")
@@ -1392,8 +1293,8 @@ with tab_teacher:
                 st.session_state.pv_unlocked = False
 
             if not st.session_state.pv_unlocked:
-                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (PV2027):", type="password", key="inp_pv_pass_v90")
-                if st.button("تفعيل الدخول لمحضر المناقشة 🚀", key="btn_pv_unlock_v90"):
+                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (PV2027):", type="password", key="inp_pv_pass_v95")
+                if st.button("تفعيل الدخول لمحضر المناقشة 🚀", key="btn_pv_unlock_v95"):
                     if pv_pass_input == PV_UNLOCK_PASS or pv_pass_input == MASTER_SUPER_PASS:
                         st.session_state.pv_unlocked = True
                         st.toast("🔓 تم تفعيل لسان محضر المناقشة بنجاح!")
@@ -1413,7 +1314,7 @@ with tab_teacher:
                                 t_title = extract_title_from_row(r)
                                 pv_dropdown_opts.append(f"{c_code} - {t_title}" if c_code else t_title)
 
-                            selected_pv_memo = st.selectbox("اختر المذكرة المعنية من المذكرات المشرف عليها:", ["-- اختر المذكرة --"] + pv_dropdown_opts, key="sb_pv_memo_v90")
+                            selected_pv_memo = st.selectbox("اختر المذكرة المعنية من المذكرات المشرف عليها:", ["-- اختر المذكرة --"] + pv_dropdown_opts, key="sb_pv_memo_v95")
                             
                             if selected_pv_memo != "-- اختر المذكرة --":
                                 form_code_pv = selected_pv_memo.split(" - ")[0].strip() if " - " in selected_pv_memo else selected_pv_memo
@@ -1443,10 +1344,10 @@ with tab_teacher:
 
                                     st.markdown("---")
                                     col_day, col_date = st.columns(2)
-                                    with col_day: pv_day = st.selectbox("اختر يوم المناقشة:", DAYS_OF_WEEK, key="sb_pv_day_v90")
-                                    with col_date: pv_date = st.date_input("تاريخ المناقشة الآلي:", value=datetime.now(), key="dt_pv_date_v90").strftime("%Y/%m/%d")
+                                    with col_day: pv_day = st.selectbox("اختر يوم المناقشة:", DAYS_OF_WEEK, key="sb_pv_day_v95")
+                                    with col_date: pv_date = st.date_input("تاريخ المناقشة الآلي:", value=datetime.now(), key="dt_pv_date_v95").strftime("%Y/%m/%d")
 
-                                    if st.button("📥 طباعة وإنشاء محضر المناقشة (PDF)", key="btn_gen_pv_pdf_v90"):
+                                    if st.button("📥 طباعة وإنشاء محضر المناقشة (PDF)", key="btn_gen_pv_pdf_v95"):
                                         pv_pdf_bytes = generate_pv_pdf_document(
                                             teacher_curr, memo_spec, memo_title,
                                             st1_full_disp, st2_full_disp,
@@ -1457,7 +1358,7 @@ with tab_teacher:
                                             data=pv_pdf_bytes,
                                             file_name=f"محضر_مناقشة_{teacher_curr}.pdf",
                                             mime="application/pdf",
-                                            key="btn_dl_pv_pdf_v90"
+                                            key="btn_dl_pv_pdf_v95"
                                         )
                         else:
                             st.info("يرجى اختيار المذكرة لعرض معطياتها ومتابعة إنتاج المحضر.")
@@ -1467,9 +1368,9 @@ with tab_teacher:
             teacher_curr = str(st.session_state.current_teacher).strip()
             st.subheader("📜 استخراج إفادة تأطير مذكرات الماستر")
             
-            attest_pass_input = st.text_input("أدخل كلمة المرور الخاصة بإفادة التأطير:", type="password", key="inp_attest_pass_v90")
+            attest_pass_input = st.text_input("أدخل كلمة المرور الخاصة بإفادة التأطير:", type="password", key="inp_attest_pass_v95")
             
-            if st.button("🔑 تفعيل الدخول إلى إفادة التأطير", key="btn_enter_attestation_v90"):
+            if st.button("🔑 تفعيل الدخول إلى إفادة التأطير", key="btn_enter_attestation_v95"):
                 if attest_pass_input == ATTESTATION_PASS:
                     st.session_state.attest_unlocked = True
                     st.toast("🔓 تم تفعيل الدخول واستخراج الإفادة بنجاح!")
@@ -1490,7 +1391,7 @@ with tab_teacher:
                                 data=pdf_attest_bytes,
                                 file_name=f"إفادة_تأطير_{teacher_curr}.pdf",
                                 mime="application/pdf",
-                                key="btn_dl_attestation_v90"
+                                key="btn_dl_attestation_v95"
                             )
                         else:
                             st.info("لا توجد مذكرات مسجلة باسمك حالياً لإصدار الإفادة.")
@@ -1516,10 +1417,10 @@ with tab_spec_admin:
         if not st.session_state.spec_admin_logged_in:
             st.subheader("دخول مسؤول التخصص")
             col_admin_spec, col_admin_pass = st.columns(2)
-            with col_admin_spec: admin_selected_spec = st.selectbox("اختر التخصص للمسؤول:", SPECIALTIES, key="sb_admin_spec_login_v90")
-            with col_admin_pass: admin_pass_input = st.text_input("كلمة مرور المسؤول:", type="password", key="admin_p_in_v90")
+            with col_admin_spec: admin_selected_spec = st.selectbox("اختر التخصص للمسؤول:", SPECIALTIES, key="sb_admin_spec_login_v95")
+            with col_admin_pass: admin_pass_input = st.text_input("كلمة مرور المسؤول:", type="password", key="admin_p_in_v95")
 
-            if st.button("تسجيل الدخول كمسؤول تخصص 🚀", key="btn_login_spec_admin_v90"):
+            if st.button("تسجيل الدخول كمسؤول تخصص 🚀", key="btn_login_spec_admin_v95"):
                 df_admins = load_data_from_sheet(SHEET_ADMINS)
                 if str(admin_pass_input) == MASTER_SUPER_PASS:
                     st.session_state.spec_admin_logged_in = True
@@ -1543,7 +1444,7 @@ with tab_spec_admin:
                 مرحباً بك أستاذنا المحترم، مسؤول تخصص: <b>{st.session_state.current_spec_admin}</b>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("🔴 تسجيل الخروج كمسؤول تخصص", key="btn_logout_spec_admin_v90"):
+            if st.button("🔴 تسجيل الخروج كمسؤول تخصص", key="btn_logout_spec_admin_v95"):
                 st.session_state.spec_admin_logged_in = False
                 st.session_state.current_spec_admin = ""
                 st.rerun()
@@ -1572,7 +1473,7 @@ with tab_spec_admin:
                             if tch_val: teachers_set.add(tch_val)
             
             if titles_status:
-                selected_teacher_filter = st.selectbox("فرز العناوين حسب الأستاذ:", ["الكل"] + sorted(list(teachers_set)), key="sb_filter_teacher_titles_v90")
+                selected_teacher_filter = st.selectbox("فرز العناوين حسب الأستاذ:", ["الكل"] + sorted(list(teachers_set)), key="sb_filter_teacher_titles_v95")
                 
                 filtered_titles = titles_status
                 if selected_teacher_filter != "الكل":
@@ -1588,10 +1489,10 @@ with tab_spec_admin:
                     """, unsafe_allow_html=True)
 
                 st.markdown("---")
-                if st.button("🖨️ طباعة تقرير العناوين وحالة الخبرة (PDF)", key="btn_print_titles_status_pdf_v90"):
+                if st.button("🖨️ طباعة تقرير العناوين وحالة الخبرة (PDF)", key="btn_print_titles_status_pdf_v95"):
                     df_t_disp = pd.DataFrame(filtered_titles)
                     pdf_b = generate_general_report_pdf(df_t_disp, [admin_selected_spec], title_prefix="تقرير العناوين وحالة الخبرة")
-                    st.download_button("📥 تحميل PDF", data=pdf_b, file_name=f"تقرير_عناوين_خبرة_{admin_selected_spec}.pdf", mime="application/pdf", key="dl_titles_pdf_v90")
+                    st.download_button("📥 تحميل PDF", data=pdf_b, file_name=f"تقرير_عناوين_خبرة_{admin_selected_spec}.pdf", mime="application/pdf", key="dl_titles_pdf_v95")
 
         with adm_tab2:
             st.write(f"### 👥 قائمة الطلبة المسجلين بتخصص: {admin_selected_spec}")
@@ -1636,7 +1537,7 @@ with tab_spec_admin:
                 handler_col = handler_col_name[0] if handler_col_name else None
 
                 all_req_titles = [str(x).strip() for x in spec_reqs[orig_col_name].dropna().tolist() if str(x).strip()]
-                req_orig_title = st.selectbox("اختر طلب التعديل للبت فيه:", ["-- اختر الطلب --"] + all_req_titles, key="sb_mod_dec_v90")
+                req_orig_title = st.selectbox("اختر طلب التعديل للبت فيه:", ["-- اختر الطلب --"] + all_req_titles, key="sb_mod_dec_v95")
                 
                 if req_orig_title != "-- اختر الطلب --":
                     selected_req_row = spec_reqs[spec_reqs[orig_col_name].astype(str).str.strip() == req_orig_title].iloc[0]
@@ -1651,13 +1552,13 @@ with tab_spec_admin:
 
                         col_a, col_r = st.columns(2)
                         with col_a:
-                            if st.button("قبول التعديل وتعديل القرار لـ 'مقبول' ✅", key="btn_accept_v90"):
+                            if st.button("قبول التعديل وتعديل القرار لـ 'مقبول' ✅", key="btn_accept_v95"):
                                 if update_mod_request_status_in_sheet(req_orig_title, "تعديل مقبول", f"مسؤول تخصص ({admin_selected_spec})", teacher_name=teacher_name_req, new_title=new_title_req):
                                     st.success("تم تفعيل القرار وتحديث ورقة 'العناوين المسجلة' سحابياً!")
                                     st.toast("✅ تم التحديث بنجاح!")
                                     st.rerun()
                         with col_r:
-                            if st.button("رفض التعديل ❌", key="btn_reject_v90"):
+                            if st.button("رفض التعديل ❌", key="btn_reject_v95"):
                                 if update_mod_request_status_in_sheet(req_orig_title, "تعديل مرفوض", f"مسؤول تخصص ({admin_selected_spec})"):
                                     st.warning("تم تسجيل الرفض بنجاح!")
                                     st.toast("❌ تم حفظ قرار الرفض!")
@@ -1686,9 +1587,9 @@ with tab_spec_admin:
         with adm_tab_print:
             st.write(f"### 🖨️ طباعة التقرير العام لتخصص: {admin_selected_spec}")
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-            if st.button("📥 إنشاء وتصدير التقرير العام (PDF)", key="btn_print_spec_pdf_v90"):
+            if st.button("📥 إنشاء وتصدير التقرير العام (PDF)", key="btn_print_spec_pdf_v95"):
                 pdf_b = generate_general_report_pdf(df_final, [admin_selected_spec], title_prefix=f"تقرير تخصص {admin_selected_spec}")
-                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name=f"تقرير_{admin_selected_spec}.pdf", mime="application/pdf", key="dl_spec_pdf_v90")
+                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name=f"تقرير_{admin_selected_spec}.pdf", mime="application/pdf", key="dl_spec_pdf_v95")
 
 # ==========================================
 # 3- فضاء مسؤولَي الشعبتين
@@ -1711,8 +1612,8 @@ with tab_dept_admin:
     with d_sub_login:
         if not st.session_state.dept_admin_logged_in:
             st.subheader("دخول مسؤولَي الشعبتين")
-            dept_pass_input = st.text_input("كلمة مرور مسؤول الشعبة:", type="password", key="dept_p_in_v90")
-            if st.button("تسجيل الدخول كمسؤول شعبة 🚀", key="btn_login_dept_admin_v90"):
+            dept_pass_input = st.text_input("كلمة مرور مسؤول الشعبة:", type="password", key="dept_p_in_v95")
+            if st.button("تسجيل الدخول كمسؤول شعبة 🚀", key="btn_login_dept_admin_v95"):
                 if dept_pass_input in ["1234", MASTER_SUPER_PASS]:
                     st.session_state.dept_admin_logged_in = True
                     st.toast("✅ تم تسجيل الدخول كمسؤول شعبة!")
@@ -1725,7 +1626,7 @@ with tab_dept_admin:
                 مرحباً بكما، مسؤولي الشعبتين - الإدارة العامة للقسم.
             </div>
             """, unsafe_allow_html=True)
-            if st.button("🔴 تسجيل الخروج كمسؤول شعبة", key="btn_logout_dept_admin_v90"):
+            if st.button("🔴 تسجيل الخروج كمسؤول شعبة", key="btn_logout_dept_admin_v95"):
                 st.session_state.dept_admin_logged_in = False
                 st.rerun()
 
@@ -1749,7 +1650,7 @@ with tab_dept_admin:
                 orig_col_name = [c for c in df_mod.columns if "أصلي" in c or "اصلي" in c or "العنوان" in c][0]
                 status_col_name = [c for c in df_mod.columns if "حالة" in c or "الحالة" in c][0]
 
-                req_orig_title_dept = st.selectbox("اختر طلب التعديل للبت فيه كمسؤول شعبة:", ["-- اختر الطلب --"] + df_mod[orig_col_name].dropna().tolist(), key="sb_mod_dec_dept_v90")
+                req_orig_title_dept = st.selectbox("اختر طلب التعديل للبت فيه كمسؤول شعبة:", ["-- اختر الطلب --"] + df_mod[orig_col_name].dropna().tolist(), key="sb_mod_dec_dept_v95")
                 if req_orig_title_dept != "-- اختر الطلب --":
                     selected_req_row = df_mod[df_mod[orig_col_name].astype(str).str.strip() == req_orig_title_dept.strip()].iloc[0]
                     teacher_name_req = selected_req_row.get("الأستاذ", "")
@@ -1757,13 +1658,13 @@ with tab_dept_admin:
 
                     col_da, col_dr = st.columns(2)
                     with col_da:
-                        if st.button("قبول التعديل وتحويل القرار لـ 'مقبول' (مسؤول الشعبة) ✅", key="btn_accept_dept_v90"):
+                        if st.button("قبول التعديل وتحويل القرار لـ 'مقبول' (مسؤول الشعبة) ✅", key="btn_accept_dept_v95"):
                             if update_mod_request_status_in_sheet(req_orig_title_dept, "تعديل مقبول", "مسؤول الشعبة", teacher_name=teacher_name_req, new_title=new_title_req):
                                 st.success("تم تسجيل القبول وتحديث القرار في شيت العناوين ليكون جاهزاً للتسجيل!")
                                 st.toast("✅ تم التحديث بنجاح!")
                                 st.rerun()
                     with col_dr:
-                        if st.button("رفض التعديل (مسؤول الشعبة) ❌", key="btn_reject_dept_v90"):
+                        if st.button("رفض التعديل (مسؤول الشعبة) ❌", key="btn_reject_dept_v95"):
                             if update_mod_request_status_in_sheet(req_orig_title_dept, "تعديل مرفوض", "مسؤول الشعبة"):
                                 st.warning("تم تسجيل الرفض بنجاح!")
                                 st.toast("❌ تم حفظ قرار الرفض!")
@@ -1801,16 +1702,16 @@ with tab_dept_admin:
 
             df_unreg_disp = pd.DataFrame(unregistered_titles_list)
             if not df_unreg_disp.empty:
-                selected_spec_filter = st.selectbox("فرز العناوين غير المسجلة حسب التخصص:", ["الكل"] + SPECIALTIES, key="sb_unreg_titles_spec_v90")
+                selected_spec_filter = st.selectbox("فرز العناوين غير المسجلة حسب التخصص:", ["الكل"] + SPECIALTIES, key="sb_unreg_titles_spec_v95")
                 if selected_spec_filter != "الكل":
                     df_unreg_disp = df_unreg_disp[df_unreg_disp["التخصص"] == selected_spec_filter]
 
                 df_unreg_disp.index = range(1, len(df_unreg_disp) + 1)
                 st.dataframe(df_unreg_disp, use_container_width=True)
 
-                if st.button("🖨️ طباعة تقرير العناوين غير المسجلة (PDF)", key="btn_print_unregistered_titles_pdf_v90"):
+                if st.button("🖨️ طباعة تقرير العناوين غير المسجلة (PDF)", key="btn_print_unregistered_titles_pdf_v95"):
                     pdf_unreg_bytes = generate_general_report_pdf(df_unreg_disp, [selected_spec_filter], title_prefix="قائمة العناوين غير المسجلة بالقسم")
-                    st.download_button("📥 تحميل PDF", data=pdf_unreg_bytes, file_name="العناوين_غير_المسجلة.pdf", mime="application/pdf", key="dl_unreg_titles_pdf_v90")
+                    st.download_button("📥 تحميل PDF", data=pdf_unreg_bytes, file_name="العناوين_غير_المسجلة.pdf", mime="application/pdf", key="dl_unreg_titles_pdf_v95")
             else:
                 st.info("لا توجد عناوين غير مسجلة حالياً.")
 
@@ -1842,7 +1743,7 @@ with tab_dept_admin:
 
             df_unreg_st = pd.DataFrame(unregistered_students)
             if not df_unreg_st.empty:
-                filter_specs = st.multiselect("فرز حسب التخصص:", options=SPECIALTIES, default=SPECIALTIES, key="ms_filter_unreg_v90")
+                filter_specs = st.multiselect("فرز حسب التخصص:", options=SPECIALTIES, default=SPECIALTIES, key="ms_filter_unreg_v95")
                 if filter_specs:
                     df_unreg_st = df_unreg_st[df_unreg_st["التخصص"].isin(filter_specs)]
 
@@ -1850,9 +1751,9 @@ with tab_dept_admin:
                 df_unreg_st.index = range(1, len(df_unreg_st) + 1)
                 st.dataframe(df_unreg_st, use_container_width=True)
 
-                if st.button("📥 تصدير قائمة الطلبة غير المسجلين (PDF)", key="btn_exp_unreg_pdf_v90"):
+                if st.button("📥 تصدير قائمة الطلبة غير المسجلين (PDF)", key="btn_exp_unreg_pdf_v95"):
                     pdf_unreg_bytes = generate_general_report_pdf(df_unreg_st, filter_specs, title_prefix="قائمة الطلبة غير المسجلين بالقسم")
-                    st.download_button("🖨️ تحميل PDF", data=pdf_unreg_bytes, file_name="الطلبة_غير_المسجلين.pdf", mime="application/pdf", key="dl_unreg_pdf_v90")
+                    st.download_button("🖨️ تحميل PDF", data=pdf_unreg_bytes, file_name="الطلبة_غير_المسجلين.pdf", mime="application/pdf", key="dl_unreg_pdf_v95")
 
         with d_tab2:
             st.write("### 🖨️ استخراج وتحميل استمارات المذكرات (فردياً ودُفعة واحدة)")
@@ -1869,7 +1770,7 @@ with tab_dept_admin:
                 with col_single:
                     st.markdown("#### 📄 تحميل استمارة واحدة")
                     file_options = df_final['اسم_الملف'].dropna().tolist()
-                    selected_file_label = st.selectbox("اختر الاستمارة المسمى باسم الأستاذ ورقمها:", ["-- اختر الاستمارة --"] + file_options, key="sb_dept_single_file_v90")
+                    selected_file_label = st.selectbox("اختر الاستمارة المسمى باسم الأستاذ ورقمها:", ["-- اختر الاستمارة --"] + file_options, key="sb_dept_single_file_v95")
                     
                     if selected_file_label != "-- اختر الاستمارة --":
                         form_row = df_final[df_final['اسم_الملف'] == selected_file_label].iloc[0]
@@ -1902,19 +1803,19 @@ with tab_dept_admin:
                             data=dept_pdf_bytes,
                             file_name=f"{selected_file_label}.pdf",
                             mime="application/pdf",
-                            key="btn_dept_dl_single_v90"
+                            key="btn_dept_dl_single_v95"
                         )
 
                 with col_bulk:
                     st.markdown("#### 📦 تحميل الاستمارات دفعة واحدة (ZIP)")
-                    bulk_choice = st.radio("خيارات التجميع للتحميل الجماعي:", ["جميع الاستمارات بالقسم", "حسب تخصص معين"], horizontal=True, key="rd_bulk_type_v90")
+                    bulk_choice = st.radio("خيارات التجميع للتحميل الجماعي:", ["جميع الاستمارات بالقسم", "حسب تخصص معين"], horizontal=True, key="rd_bulk_type_v95")
                     
                     target_bulk_df = df_final.copy()
                     if bulk_choice == "حسب تخصص معين":
-                        selected_bulk_spec = st.selectbox("اختر التخصص للتنزيل الجماعي:", SPECIALTIES, key="sb_bulk_spec_v90")
+                        selected_bulk_spec = st.selectbox("اختر التخصص للتنزيل الجماعي:", SPECIALTIES, key="sb_bulk_spec_v95")
                         target_bulk_df = target_bulk_df[target_bulk_df["تخصص الطالب"] == selected_bulk_spec]
 
-                    if st.button("📦 إنتاج ملف الاستمارات الجماعي (ZIP)", key="btn_gen_bulk_zip_v90"):
+                    if st.button("📦 إنتاج ملف الاستمارات الجماعي (ZIP)", key="btn_gen_bulk_zip_v95"):
                         if not target_bulk_df.empty:
                             zip_buffer = BytesIO()
                             with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
@@ -1951,7 +1852,7 @@ with tab_dept_admin:
                                 data=zip_buffer,
                                 file_name="جميع_الاستمارات_المعتمدة.zip",
                                 mime="application/zip",
-                                key="btn_dl_zip_final_v90"
+                                key="btn_dl_zip_final_v95"
                             )
                         else:
                             st.warning("لا توجد استمارات مطابقة للخيار المحدد.")
@@ -2000,15 +1901,15 @@ with tab_dept_admin:
                     data=pdf_tch_stats_bytes,
                     file_name="تقرير_إحصائيات_أساتذة_القسم.pdf",
                     mime="application/pdf",
-                    key="btn_dl_tch_stats_pdf_v90"
+                    key="btn_dl_tch_stats_pdf_v95"
                 )
 
         with d_tab4:
-            selected_specs_report = st.multiselect("حدد التخصصات المطلوب طباعتها:", options=SPECIALTIES, default=SPECIALTIES, key="ms_dept_v90")
+            selected_specs_report = st.multiselect("حدد التخصصات المطلوب طباعتها:", options=SPECIALTIES, default=SPECIALTIES, key="ms_dept_v95")
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-            if st.button("📥 تصدير التقرير العام (PDF)", key="btn_print_dept_pdf_v90"):
+            if st.button("📥 تصدير التقرير العام (PDF)", key="btn_print_dept_pdf_v95"):
                 pdf_b = generate_general_report_pdf(df_final, selected_specs_report)
-                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name="التقرير_العام.pdf", mime="application/pdf", key="dl_dept_pdf_v90")
+                st.download_button("🖨️ تحميل الملف", data=pdf_b, file_name="التقرير_العام.pdf", mime="application/pdf", key="dl_dept_pdf_v95")
 
 # ==========================================
 # 4- لسان البرمجة والتطوير وإدارة النظام
@@ -2034,7 +1935,7 @@ with tab_dev_info:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### 🔐 حيز إدارة النظام")
     
-    sys_pass_input = st.text_input("أدخل كلمة المرور لدخول إدارة النظام:", type="password", key="inp_sys_pass_v90")
+    sys_pass_input = st.text_input("أدخل كلمة المرور لدخول إدارة النظام:", type="password", key="inp_sys_pass_v95")
     
     if sys_pass_input == SYS_ADMIN_PASS:
         st.success("✅ تم الدخول إلى إدارة النظام بنجاح!")
