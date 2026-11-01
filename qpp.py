@@ -890,7 +890,7 @@ with tab_teacher:
         st.subheader("📘 دليل استعمال منصة إدارة مذكرات الماستر")
         
         st.markdown("""<div class="card-box">""", unsafe_allow_html=True)
-        st.markdown("### 🔑 طلب الرقم السري للدخول عبر البريد المهني للأستاذ:")
+        st.markdown("### 🔑   لمن لا يملك رمز المرور ... طلب الرقم السري للدخول عبر البريد المهني للأستاذ:")
         df_teachers_all = load_data_from_sheet(SHEET_TEACHERS)
         t_name_col = [c for c in df_teachers_all.columns if "الاسم" in c or "اللقب" in c][0] if not df_teachers_all.empty else "اسم الأستاذ"
         teachers_list_req = df_teachers_all[t_name_col].dropna().unique().tolist() if not df_teachers_all.empty else []
