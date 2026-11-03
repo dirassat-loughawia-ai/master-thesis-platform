@@ -1025,7 +1025,7 @@ with tab_teacher:
                 if len(unapproved_titles) > 0:
                     st.warning("⚠️ لقد قمت بتقديم طلبات تعديل لجميع عناوينك غير المقبولة مسبقاً.")
                 else:
-                    st.success("🎉 جميع مواضيعك إما مقبولة نهائياً أو أنه لا توجد مواضيع تتطلب تعديلاً!")
+                    st.success("🎉  ميع مواضيعك إما مقبولة نهائياً أو أنه لا توجد مواضيع تتطلب تعديلا أو أنه لا يوجد لك مواضيع في هذا التخصص !")
             st.markdown("""</div>""", unsafe_allow_html=True)
 
             st.markdown("""<div class="card-box">""", unsafe_allow_html=True)
