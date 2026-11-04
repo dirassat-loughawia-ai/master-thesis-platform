@@ -50,11 +50,11 @@ SHEET_PASS_REQUESTS = "طلب كلمات المرور"
 SPECIALTIES = ["لسانيات عامة", "أدب عربي حديث ومعاصر", "نقد حديث معاصر", "أدب شعبي"]
 DAYS_OF_WEEK = ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"]
 
-MASTER_SUPER_PASS = "0000"
+MASTER_SUPER_PASS = "0675604874"
 ATTESTATION_PASS = "20262027"
-SYS_ADMIN_PASS = "KHELIL2026"
-REGISTRATION_UNLOCK_PASS = "REG2026"
-PV_UNLOCK_PASS = "PV2027"
+SYS_ADMIN_PASS = "20262027"
+REGISTRATION_UNLOCK_PASS = "20262027"
+PV_UNLOCK_PASS = "20262027"
 
 SPEC_SUFFIX_MAP = {
     "لسانيات عامة": "_ling",
