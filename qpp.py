@@ -851,7 +851,7 @@ st.markdown("""
 
 st.markdown("""
 <div class="main-header">
-    <h1 style="margin:0; font-size:2.2rem; text-align:center;">🎓 منصة إدارة مذكرات الماستر (السحابية)</h1>
+    <h1 style="margin:0; font-size:2.2rem; text-align:center;">🎓 منصة إدارة مذكرات الماستر (عــن بــعــد)</h1>
     <p style="margin:5px 0 0 0; font-size:1.1rem; opacity:0.9; text-align:center;">قسم اللغة والأدب العربي - كلية الآداب واللغات - جامعة الوادي</p>
 </div>
 """, unsafe_allow_html=True)
