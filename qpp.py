@@ -67,7 +67,7 @@ SPEC_SUFFIX_MAP = {
 AMAZING_COUNTER_HTML = """
 <div style="text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl;">
     <div style="font-size: 1.15rem; font-weight: bold; color: #1e3a8a; margin-bottom: 8px;">
-        أستاذنا المبجل، أنت الزائر رقم:
+        أستاذنا الفاضل، مرحبا بك في منصتك... صل على النبي، أنت الزائر رقم:
     </div>
     <div style="pointer-events: none; cursor: default; display: inline-block;">
         <img border="0" src="http://cc.amazingcounters.com/counter.php?i=3202262&c=9607099" alt="AmazingCounters.com" style="pointer-events: none; cursor: default;">
