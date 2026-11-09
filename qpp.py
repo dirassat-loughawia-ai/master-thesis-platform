@@ -47,7 +47,7 @@ SHEET_FINAL_REGISTRATIONS = "التسجيلات النهائية"
 SHEET_ATTEST_NUMBERS = "رقم الإفادة"
 SHEET_PASS_REQUESTS = "طلب كلمات المرور"
 
-SPECIALTIES = ["لسانيات عامة", "أدب عربي حديث ومعاصر", "نقد حديث معاصر", "أدب شعبي"]
+SPECIALTIES = ["لسانيات عامة", "أدب عربي حديث ومعاصر", "نقد حديث معاصر", "اأدب شعبي"]
 DAYS_OF_WEEK = ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"]
 
 MASTER_SUPER_PASS = "0675604874"
@@ -60,7 +60,7 @@ SPEC_SUFFIX_MAP = {
     "لسانيات عامة": "_ling",
     "أدب عربي حديث ومعاصر": "_hadith",
     "نقد حديث معاصر": "_nakd",
-    "أدب شعبي": "_chabi"
+    "اأدب شعبي": "_chabi"
 }
 
 # --- 2. كود عداد الزوار ---
@@ -1727,7 +1727,7 @@ with tab_dept_admin:
                     if "لسانيات" in col_lower: spec_detected = "لسانيات عامة"
                     elif "أدب" in col_lower: spec_detected = "أدب عربي حديث ومعاصر"
                     elif "نقد" in col_lower: spec_detected = "نقد حديث معاصر"
-                    elif "شعبي" in col_lower: spec_detected = "أدب شعبي"
+                    elif "شعبي" in col_lower: spec_detected = "اأدب شعبي"
 
                     for _, r in df_titles.iterrows():
                         t_val = str(r[t_col]).strip()
