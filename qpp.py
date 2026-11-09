@@ -532,35 +532,48 @@ def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st
     can.setFont(ARABIC_FONT_BOLD, 17)
     can.drawCentredString(center_x, page_height - 235, reshape_arabic("عنوان المذكرة:"))
 
-    # 2. معالجة اتجاه عنوان المذكرة (RTL) ومنع خلط الأسطر والأقواس
-    title_box_width = page_width - 80
+    # 2. تقسيم وتنسيق العنوان ديناميكياً بدون تشويه الخط أو انعكاسه
     raw_title = str(title).strip() if title else ""
+    full_title_str = f"« {raw_title} »"
     
-    # إعادة تشكيل الحروف العربية فقط دون get_display لتفادي خلط اتجاه الأسطر داخل الفقرة
-    reshaped_title_text = arabic_reshaper.reshape(f"« {raw_title} »")
+    max_title_width = page_width - 110  # اقصى عرض متاح للسطر داخل المستطيل
+    can.setFont(ARABIC_FONT_BOLD, 15)
 
-    title_style = ParagraphStyle(
-        'RTLTitleStyle',
-        fontName=ARABIC_FONT_BOLD,
-        fontSize=15,
-        alignment=TA_CENTER,
-        leading=22
-    )
-    
-    title_p = Paragraph(reshaped_title_text, title_style)
-    p_w, p_h = title_p.wrap(title_box_width - 20, page_height)
-    
+    # دالة لتقسيم الكلمات على أسطر
+    words = full_title_str.split()
+    lines = []
+    current_line = []
+
+    for word in words:
+        test_line = " ".join(current_line + [word])
+        # قياس عرض السطر قبل طباعته
+        if can.stringWidth(reshape_arabic(test_line), ARABIC_FONT_BOLD, 15) <= max_title_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    # حساب الارتفاع الديناميكي للإطار
+    line_height = 24
     padding_v = 12
-    box_height = max(50, p_h + (padding_v * 2))
+    box_height = max(50, (len(lines) * line_height) + (padding_v * 2))
     box_top_y = page_height - 245
     rect_y = box_top_y - box_height
 
-    # رسم الإطار ورسم النص داخله
+    # رسم مستطيل العنوان
     can.setLineWidth(1.5)
-    can.rect(40, rect_y, title_box_width, box_height)
-    title_p.drawOn(can, 50, rect_y + padding_v)
+    can.rect(40, rect_y, page_width - 80, box_height)
 
-    # 3. تعديل موقع بيانات الطلبة تلقائياً أسفل الإطار
+    # طباعة أسطر العنوان بالتوسيط والربط العربي الصحيح
+    start_y = box_top_y - padding_v - 16
+    for i, line_txt in enumerate(lines):
+        y_pos = start_y - (i * line_height)
+        can.drawCentredString(center_x, y_pos, reshape_arabic(line_txt))
+
+    # 3. تعديل موقع بيانات الطلبة أسفل الإطار مباشرة
     y_st = rect_y - 35
     can.setFont(ARABIC_FONT_BOLD, 12)
     
@@ -587,7 +600,7 @@ def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st
     else:
         y_sig = y_st - 85
 
-    # 4. منطقة التواقيع والـ QR Code
+    # 4. التواقيع أسفل الصفحة
     can.setFont(ARABIC_FONT_BOLD, 13)
     can.drawCentredString(page_width - 120, y_sig, reshape_arabic("توقيع المشرف (QR Code)"))
     can.drawCentredString(120, y_sig, reshape_arabic("توقيع مسؤول الشعبة"))
@@ -606,8 +619,7 @@ def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st
 
     can.save()
     packet.seek(0)
-    return packet.getvalue()
-    
+    return packet.getvalue()    
 
 def generate_qr_code_image(data_text):
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=6, border=2)
