@@ -1293,7 +1293,7 @@ with tab_teacher:
                 st.session_state.pv_unlocked = False
 
             if not st.session_state.pv_unlocked:
-                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (PV2027):", type="password", key="inp_pv_pass_v95")
+                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (لم يتم فتح النافذة):", type="password", key="inp_pv_pass_v95")
                 if st.button("تفعيل الدخول لمحضر المناقشة 🚀", key="btn_pv_unlock_v95"):
                     if pv_pass_input == PV_UNLOCK_PASS or pv_pass_input == MASTER_SUPER_PASS:
                         st.session_state.pv_unlocked = True
