@@ -532,32 +532,35 @@ def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st
     can.setFont(ARABIC_FONT_BOLD, 17)
     can.drawCentredString(center_x, page_height - 235, reshape_arabic("عنوان المذكرة:"))
 
-    # 2. معالجة العنوان الديناميكي وإطاره المترابط
-    title_box_width = page_width - 80  # عرض الإطار 
+    # 2. معالجة اتجاه عنوان المذكرة (RTL) ومنع خلط الأسطر والأقواس
+    title_box_width = page_width - 80
+    raw_title = str(title).strip() if title else ""
+    
+    # إعادة تشكيل الحروف العربية فقط دون get_display لتفادي خلط اتجاه الأسطر داخل الفقرة
+    reshaped_title_text = arabic_reshaper.reshape(f"« {raw_title} »")
+
     title_style = ParagraphStyle(
-        'DynamicTitleStyle',
+        'RTLTitleStyle',
         fontName=ARABIC_FONT_BOLD,
         fontSize=15,
         alignment=TA_CENTER,
         leading=22
     )
     
-    # إنشاء عنصر فقرة للعنوان مع الالتفاف التلقائي
-    title_p = Paragraph(reshape_arabic(f"« {title} »"), title_style)
-    p_w, p_h = title_p.wrap(title_box_width - 20, page_height)  # حساب الأبعاد الحقيقية للنص
+    title_p = Paragraph(reshaped_title_text, title_style)
+    p_w, p_h = title_p.wrap(title_box_width - 20, page_height)
     
-    # تحديد ارتفاع الإطار وموقعه العلوي
-    padding_v = 12  # هامش علوي وسفلي داخل الإطار
+    padding_v = 12
     box_height = max(50, p_h + (padding_v * 2))
     box_top_y = page_height - 245
     rect_y = box_top_y - box_height
 
-    # رسم الإطار ورسم النص بداخله
+    # رسم الإطار ورسم النص داخله
     can.setLineWidth(1.5)
     can.rect(40, rect_y, title_box_width, box_height)
     title_p.drawOn(can, 50, rect_y + padding_v)
 
-    # 3. تعديل موقع الطلبة آلياً بحسب ارتفاع إطار العنوان
+    # 3. تعديل موقع بيانات الطلبة تلقائياً أسفل الإطار
     y_st = rect_y - 35
     can.setFont(ARABIC_FONT_BOLD, 12)
     
@@ -584,7 +587,7 @@ def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st
     else:
         y_sig = y_st - 85
 
-    # 4. التواقيع وأسفل الصفحة
+    # 4. منطقة التواقيع والـ QR Code
     can.setFont(ARABIC_FONT_BOLD, 13)
     can.drawCentredString(page_width - 120, y_sig, reshape_arabic("توقيع المشرف (QR Code)"))
     can.drawCentredString(120, y_sig, reshape_arabic("توقيع مسؤول الشعبة"))
@@ -603,8 +606,9 @@ def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st
 
     can.save()
     packet.seek(0)
-    return packet.getvalue()    
+    return packet.getvalue()
     
+
 def generate_qr_code_image(data_text):
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=6, border=2)
     qr.add_data(data_text)
