@@ -497,37 +497,32 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_f
     doc.build(story, onFirstPage=render_page_header_first_only)
     buffer.seek(0)
     return buffer.getvalue()
-# دالة توليد استمارة التسجيل المعدلة للتكفل بالعناوين الطويلة
 def generate_pdf_document(teacher_name, specialty, st1_name, st1_reg, st2_name, st2_reg, title, qr_code_str):
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
     page_width, page_height = letter
     center_x = page_width / 2.0
 
-    # الإطار الخارجي للورقة
     can.setLineWidth(2)
     can.rect(20, 20, page_width - 40, page_height - 40)
 
-    # رسم الشعارين العلويين
     draw_header_icons(can, page_width, page_height)
 
-    # الترويسة الرسمية
     can.setFont(ARABIC_FONT_BOLD, 13)
     can.drawCentredString(center_x, page_height - 40, reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"))
     can.drawCentredString(center_x, page_height - 55, reshape_arabic("وزارة التعليم العالي والبحث العلمي"))
     can.drawCentredString(center_x, page_height - 70, reshape_arabic("جامعة الوادي - كلية الآداب واللغات"))
 
-    # الخط الفاصل تحت جامعة الوادي
     can.setLineWidth(1)
     can.line(30, page_height - 78, page_width - 30, page_height - 78)
 
-    # الكلية والقسم على اليمين والسنة على اليسار
     can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawRightString(page_width - 40, page_height - 95, reshape_arabic("كلية الآداب واللغات"))
     can.drawRightString(page_width - 40, page_height - 110, reshape_arabic("قسم اللغة والأدب العربي"))
+
+    can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawString(40, page_height - 95, reshape_arabic("السنة الجامعية: 2026-2027"))
 
-    # عنوان الاستمارة الرئيسية
     can.setFont(ARABIC_FONT_BOLD, 26)
     can.drawCentredString(center_x, page_height - 150, reshape_arabic("استمارة تسجيل مذكرة ماستر"))
     
@@ -536,40 +531,16 @@ def generate_pdf_document(teacher_name, specialty, st1_name, st1_reg, st2_name, 
 
     can.setFont(ARABIC_FONT_BOLD, 15)
     can.drawCentredString(center_x, page_height - 220, reshape_arabic(f"الأستاذ المشرف: {teacher_name}"))
-    can.drawCentredString(center_x, page_height - 248, reshape_arabic("عنوان المذكرة:"))
-
-    # --- بداية التحديث: إدراج العنوان داخل إطار ينزل لعدة أسطر تلقائياً ---
-    title_style = ParagraphStyle(
-        'MemoTitleStyle',
-        fontName=ARABIC_FONT_BOLD,
-        fontSize=14,
-        alignment=TA_CENTER,
-        leading=20,
-        textColor=colors.HexColor('#0f172a')
-    )
+    can.drawCentredString(center_x, page_height - 250, reshape_arabic("عنوان المذكرة:"))
     
-    formatted_title = Paragraph(reshape_arabic(f"« {title} »"), title_style)
+    rect_y = page_height - 335
+    can.setLineWidth(1.5)
+    can.rect(40, rect_y, page_width - 80, 70)
     
-    # جدول بحجم ثابت العرض (510 نقطة) يسمح بالالتفاف الرأسي للأسطر داخل الإطار
-    title_box_table = Table([[formatted_title]], colWidths=[510])
-    title_box_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-        ('LEFTPADDING', (0, 0), (-1, -1), 15),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-        ('BOX', (0, 0), (-1, -1), 1.2, colors.HexColor('#475569')),
-    ]))
+    can.setFont(ARABIC_FONT_BOLD, 16)
+    can.drawCentredString(center_x, rect_y + 28, reshape_arabic(f"« {title} »"))
 
-    # حساب الارتفاع التلقائي للجدول ورسمه بالمنتصف
-    t_w, t_h = title_box_table.wrap(510, page_height)
-    box_y_position = page_height - 260 - t_h
-    title_box_table.drawOn(can, (page_width - 510) / 2.0, box_y_position)
-
-    # --- ضبط مسافة العناصر التالية ديناميكياً لتفادي تداخلها مع الإطار المترتب عن الأسطر المتعددة ---
-    y_st = box_y_position - 30
+    y_st = page_height - 380
     can.setFont(ARABIC_FONT_BOLD, 13)
     
     s1_clean = str(st1_name).strip() if st1_name else ""
@@ -587,11 +558,9 @@ def generate_pdf_document(teacher_name, specialty, st1_name, st1_reg, st2_name, 
     can.drawRightString(page_width - 60, y_sig, reshape_arabic("توقيع المشرف (QR Code):"))
     can.drawString(60, y_sig, reshape_arabic("توقيع مسؤول الشعبة:"))
 
-    # رسم الـ QR Code الخاص بالمشرف
     qr_buf = generate_qr_code_image(qr_code_str)
     can.drawImage(ImageReader(qr_buf), page_width - 150, y_sig - 105, width=75, height=75)
 
-    # إدراج إمضاء مسؤول الشعبة
     sign_file = "sign2.png" if "لسانيات" in str(specialty) else "sign3.png"
     sign_b = get_image_bytes(sign_file)
     if sign_b:
