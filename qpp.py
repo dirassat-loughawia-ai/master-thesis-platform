@@ -1174,7 +1174,7 @@ with tab_teacher:
                     if approved_titles:
                         selected_title_dropdown = st.selectbox("اختر عنوان المذكرة المقبول نهائياً للتسجيل:", ["-- اختر العنوان --"] + approved_titles, key="sb_title_v95")
                     else:
-                        st.warning("⚠️ لا توجد مواضيع بقرار (مقبول) متاح للتسجيل.")
+                        st.warning("⚠️ لا توجد مواضيع بقرار (مقبول) متاح للتسجيل.") 
                         selected_title_dropdown = "-- اختر العنوان --"
 
                     if st.button("💾 حفظ وتوقيع الاستمارة آلياً بالـ QR Code", key="btn_save_v95"):
