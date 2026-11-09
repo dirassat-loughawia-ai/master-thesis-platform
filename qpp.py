@@ -498,8 +498,8 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_f
     buffer.seek(0)
     return buffer.getvalue()
 # دالة توليد استمارة التسجيل المعدلة لدعم العناوين الطويلة على أسطر متعددة
-def generate_pdf_document(teacher_name, specialty, st1_name, st1_reg, st2_name, st2_reg, title, qr_code_str):
-    packet = BytesIO()
+def generate_pdf_document(form_code, teacher_name, specialty, st1_name, st1_reg, st2_name, st2_reg, title, qr_code_str):
+packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
     page_width, page_height = letter
     center_x = page_width / 2.0
