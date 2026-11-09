@@ -1053,7 +1053,7 @@ with tab_teacher:
                 st.session_state.reg_period_unlocked = False
 
             if not st.session_state.reg_period_unlocked:
-                reg_pass_input = st.text_input("🔑 أدخل كلمة مرور فتح فترة التسجيل الممنوحة من القسم:", type="password", key="inp_reg_unlock_pass_v95")
+                reg_pass_input = st.text_input("🔑 أدخل كلمة مرور فتح فترة التسجيل : 2027:", type="password", key="inp_reg_unlock_pass_v95")
                 if st.button("🔓 الدخول إلى فترة التسجيل", key="btn_unlock_reg_period_v95"):
                     if reg_pass_input == REGISTRATION_UNLOCK_PASS or reg_pass_input == MASTER_SUPER_PASS:
                         st.session_state.reg_period_unlocked = True
