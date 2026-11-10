@@ -926,7 +926,7 @@ with tab_teacher:
 
     # 1. لسان دليل الاستعمال (جلب مباشر من ملف GitHub دون توليد آلي)
     with t_sub_guide:
-        st.subheader("📘 دليل استعمال منصة إدارة مذكرات الماستر")
+        st.subheader("* دليل استعمال منصة إدارة مذكرات الماستر")
         
         st.markdown("""<div class="card-box">""", unsafe_allow_html=True)
         st.markdown("### 🔑   لمن لا يملك رمز المرور ... طلب الرقم السري للدخول عبر البريد المهني للأستاذ:")
