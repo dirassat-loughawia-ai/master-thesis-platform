@@ -52,8 +52,8 @@ DAYS_OF_WEEK = ["السبت", "الأحد", "الإثنين", "الثلاثاء"
 
 MASTER_SUPER_PASS = "0675604874"
 ATTESTATION_PASS = "20262027"
-SYS_ADMIN_PASS = "20262027"
-REGISTRATION_UNLOCK_PASS = "2020"
+SYS_ADMIN_PASS = "0675604874"
+REGISTRATION_UNLOCK_PASS = "112026"
 PV_UNLOCK_PASS = "20262027"
 
 SPEC_SUFFIX_MAP = {
@@ -1092,7 +1092,7 @@ with tab_teacher:
                 st.session_state.reg_period_unlocked = False
 
             if not st.session_state.reg_period_unlocked:
-                reg_pass_input = st.text_input("🔑 أدخل كلمة مرور فتح فترة التسجيل : 20262027:", type="password", key="inp_reg_unlock_pass_v95")
+                reg_pass_input = st.text_input("🔑 أدخل كلمة مرور فتح فترة التسجيل : 112026:", type="password", key="inp_reg_unlock_pass_v95")
                 if st.button("🔓 الدخول إلى فترة التسجيل", key="btn_unlock_reg_period_v95"):
                     if reg_pass_input == REGISTRATION_UNLOCK_PASS or reg_pass_input == MASTER_SUPER_PASS:
                         st.session_state.reg_period_unlocked = True
