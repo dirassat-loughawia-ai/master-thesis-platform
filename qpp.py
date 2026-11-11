@@ -1167,9 +1167,9 @@ with tab_teacher:
                     students_display_list = [s["display"] for s in students_objs]
 
                     col_s1, col_s2 = st.columns(2)
-                    with col_s1: st1_sel = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب --"] + students_display_list, key="st1_v95")
+                    with col_s1: st1_sel = st.selectbox("اختر الطالب الأول (إجباري):", ["-- اختر الطالب -- لبحث أسرع...اكتب الأحرف الأولى"] + students_display_list, key="st1_v95")
                     st2_opts = [s for s in students_display_list if s != st1_sel]
-                    with col_s2: st2_sel = st.selectbox("اختر الطالب الثاني (إجباري):", ["-- اختر الطالب --"] + st2_opts, key="st2_v95")
+                    with col_s2: st2_sel = st.selectbox("اختر الطالب الثاني (إجباري):", ["-- اختر الطالب -- لبحث أسرع...اكتب الأحرف الأولى"] + st2_opts, key="st2_v95")
 
                     if approved_titles:
                         selected_title_dropdown = st.selectbox("اختر عنوان المذكرة المقبول نهائياً للتسجيل:", ["-- اختر العنوان --"] + approved_titles, key="sb_title_v95")
