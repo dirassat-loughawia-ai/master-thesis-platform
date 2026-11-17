@@ -976,7 +976,7 @@ with tab_teacher:
         if st.session_state.teacher_logged_in:
             st.markdown(f"""
             <div class="status-msg-success">
-                الأستاذ-ة- المحترمـ-ة- ({st.session_state.current_teacher}) لقد تم تسجيل الدخول بنجاح.
+                الأستاذ-ة- المحترم-ة- ({st.session_state.current_teacher}) لقد تم تسجيل الدخول بنجاح.
             </div>
             """, unsafe_allow_html=True)
             if st.button("🔴 تسجيل الخروج", key="btn_logout_teacher_v95"):
