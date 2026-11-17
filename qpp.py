@@ -1011,7 +1011,7 @@ with tab_teacher:
             st.info("⚠️ يرجى تسجيل الدخول أولاً من لسان 'الدخول إلى حسابي'.")
         else:
             current_teacher_name = st.session_state.current_teacher.strip()
-            st.subheader(f"📑 نتائج خبرة المواضيع المقترحة للأستاذ: {current_teacher_name}")
+            st.subheader(f"📑 نتائج خبرة المواضيع المقترحة للأستاذ-ة: {current_teacher_name}")
             
             selected_spec_view = st.selectbox("اختر التخصص لمعاينة مواضيعك:", SPECIALTIES, key="sb_spec_view_v95")
             all_titles_info, _, _ = get_teacher_titles_status(current_teacher_name, selected_spec_view)
