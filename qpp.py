@@ -1258,7 +1258,7 @@ with tab_teacher:
                                         st.rerun()
                             st.markdown("""</div>""", unsafe_allow_html=True)
 
-    with t_sub_tab_registered:
+with t_sub_tab_registered:
         if st.session_state.teacher_logged_in:
             teacher_curr = str(st.session_state.current_teacher).strip()
             st.subheader(f"📚 العناوين المسجلة والتحميل باسم الأستاذ: {teacher_curr}")
@@ -1282,7 +1282,7 @@ with tab_teacher:
                             if title_val:
                                 dropdown_options_print.append(f"{code_val} - {title_val}" if code_val else title_val)
 
-                        selected_item_to_print = st.selectbox("اختر عنوان المذكرة لتحميل استمارتها:", ["-- اختر المذكرة --"] + dropdown_options_print, key="sb_print_reg_v95")
+                        selected_item_to_print = st.selectbox("اختر عنوان المذكرة لتحميل استمارتها:", ["-- اختر المذكرة --"] + dropdown_options_print, key="sb_print_reg_v96")
                         if selected_item_to_print != "-- اختر المذكرة --":
                             selected_title_print_clean = selected_item_to_print.split(" - ", 1)[1] if " - " in selected_item_to_print else selected_item_to_print
                             p_row = None
@@ -1292,19 +1292,36 @@ with tab_teacher:
                                     break
                             
                             if p_row is not None:
-                                _, _, st1_ar, r1_v, st2_ar, r2_v = extract_students_data_from_row(p_row)
-                                raw_st1 = str(p_row.get("اسم الطالب 1", ""))
-                                raw_st2 = str(p_row.get("اسم الطالب 2", ""))
-
-                                st1_fr = raw_st1.split(" (")[1].replace(")", "") if " (" in raw_st1 else ""
-                                st2_fr = raw_st2.split(" (")[1].replace(")", "") if " (" in raw_st2 else ""
-
-                                spec_val = p_row.get("تخصص الطالب", "")
-                                title_val = extract_title_from_row(p_row)
-                                form_code_val = p_row.get("رمز الاستمارة", generate_random_code())
+                                # استخراج البيانات بنفس منطق التسجيل الفوري تماماً
+                                _, _, raw_st1_comb, r1_v, raw_st2_comb, r2_v = extract_students_data_from_row(p_row)
                                 
-                                st2_qr_txt = f" / St2: {st2_ar}" if st2_ar else ""
-                                qr_code_val = f"REF:{form_code_val} | TCH:{teacher_curr} | SPEC:{spec_val} | St1:{st1_ar}{st2_qr_txt} | TITLE:{title_val}"
+                                # فصل الاسم العربي عن الفرنسي بدقة ليطابق الاستمارة الأصلية
+                                if " (" in raw_st1_comb and raw_st1_comb.endswith(")"):
+                                    st1_ar = raw_st1_comb.split(" (")[0].strip()
+                                    st1_fr = raw_st1_comb.split(" (")[1][:-1].strip()
+                                else:
+                                    st1_ar = raw_st1_comb.strip()
+                                    st1_fr = ""
+
+                                if raw_st2_comb and " (" in raw_st2_comb and raw_st2_comb.endswith(")"):
+                                    st2_ar = raw_st2_comb.split(" (")[0].strip()
+                                    st2_fr = raw_st2_comb.split(" (")[1][:-1].strip()
+                                else:
+                                    st2_ar = raw_st2_comb.strip()
+                                    st2_fr = ""
+
+                                # استخدام الدالة الموحدة لاستخراج التخصص والعنوان ورمز الاستمارة
+                                spec_val = extract_spec_from_row(p_row)
+                                title_val = extract_title_from_row(p_row)
+                                form_code_val = str(p_row.iloc[0]).strip() if len(p_row) > 0 else generate_random_code()
+                                
+                                # استرجاع كود التحقق الأصلي المحفوظ أو بناء كود مطابق له
+                                saved_qr = str(p_row.iloc[9]).strip() if len(p_row) >= 10 and str(p_row.iloc[9]).strip().lower() not in ["", "nan", "none"] else ""
+                                if saved_qr:
+                                    qr_code_val = saved_qr
+                                else:
+                                    st2_qr_txt = f" / St2: {st2_ar}" if st2_ar else ""
+                                    qr_code_val = f"REF:{form_code_val} | TCH:{teacher_curr} | SPEC:{spec_val} | St1:{st1_ar}{st2_qr_txt} | TITLE:{title_val}"
 
                                 pdf_bytes_row = generate_pdf_document(
                                     form_code_val, teacher_curr, spec_val,
@@ -1313,13 +1330,12 @@ with tab_teacher:
                                 )
 
                                 st.download_button(
-                                    label=f"🖨️ تحميل استمارة «{selected_title_print_clean[:20]}...» مع الكودبار",
+                                    label=f"🖨️ تحميل استمارة «{selected_title_print_clean[:25]}...» مع الكودبار",
                                     data=pdf_bytes_row,
                                     file_name=f"استمارة_{teacher_curr}.pdf",
                                     mime="application/pdf",
-                                    key="btn_dl_registered_pdf_v95"
+                                    key="btn_dl_registered_pdf_v96"
                                 )
-
     # محضر المناقشة بالتنسيقات المحدثة بالكامل
     with t_sub_tab_pv:
         if not st.session_state.teacher_logged_in:
