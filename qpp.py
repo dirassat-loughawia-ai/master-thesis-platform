@@ -1334,7 +1334,7 @@ with t_sub_tab_registered:
                                     data=pdf_bytes_row,
                                     file_name=f"استمارة_{teacher_curr}.pdf",
                                     mime="application/pdf",
-                                    key="btn_dl_registered_pdf_v96"
+                                    key="btn_dl_registered_pdf_v95"
                                 )
     # محضر المناقشة بالتنسيقات المحدثة بالكامل
     with t_sub_tab_pv:
