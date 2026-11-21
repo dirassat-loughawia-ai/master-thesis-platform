@@ -1258,7 +1258,7 @@ with tab_teacher:
                                         st.rerun()
                             st.markdown("""</div>""", unsafe_allow_html=True)
 
-with t_sub_tab_registered:
+    with t_sub_tab_registered:
         if st.session_state.teacher_logged_in:
             teacher_curr = str(st.session_state.current_teacher).strip()
             st.subheader(f"📚 العناوين المسجلة والتحميل باسم الأستاذ: {teacher_curr}")
