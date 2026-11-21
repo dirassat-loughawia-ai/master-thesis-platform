@@ -1825,24 +1825,40 @@ with tab_dept_admin:
                 with col_single:
                     st.markdown("#### 📄 تحميل استمارة واحدة")
                     file_options = df_final['اسم_الملف'].dropna().tolist()
-                    selected_file_label = st.selectbox("اختر الاستمارة المسمى باسم الأستاذ ورقمها:", ["-- اختر الاستمارة --"] + file_options, key="sb_dept_single_file_v95")
+                    selected_file_label = st.selectbox("اختر الاستمارة المسمى باسم الأستاذ ورقمها:", ["-- اختر الاستمارة --"] + file_options, key="sb_dept_single_file_v97")
                     
                     if selected_file_label != "-- اختر الاستمارة --":
                         form_row = df_final[df_final['اسم_الملف'] == selected_file_label].iloc[0]
-                        _, _, st1_ar, r1_v, st2_ar, r2_v = extract_students_data_from_row(form_row)
+                        _, _, raw_st1_comb, r1_v, raw_st2_comb, r2_v = extract_students_data_from_row(form_row)
 
-                        raw_st1 = str(form_row.get("اسم الطالب 1", ""))
-                        raw_st2 = str(form_row.get("اسم الطالب 2", ""))
-                        st1_fr = raw_st1.split(" (")[1].replace(")", "") if " (" in raw_st1 else ""
-                        st2_fr = raw_st2.split(" (")[1].replace(")", "") if " (" in raw_st2 else ""
+                        # فصل الاسم العربي عن الفرنسي بدقة ليطابق الاستمارة الأصلية
+                        if " (" in raw_st1_comb and raw_st1_comb.endswith(")"):
+                            st1_ar = raw_st1_comb.split(" (")[0].strip()
+                            st1_fr = raw_st1_comb.split(" (")[1][:-1].strip()
+                        else:
+                            st1_ar = raw_st1_comb.strip()
+                            st1_fr = ""
 
+                        if raw_st2_comb and " (" in raw_st2_comb and raw_st2_comb.endswith(")"):
+                            st2_ar = raw_st2_comb.split(" (")[0].strip()
+                            st2_fr = raw_st2_comb.split(" (")[1][:-1].strip()
+                        else:
+                            st2_ar = raw_st2_comb.strip()
+                            st2_fr = ""
+
+                        # استخراج البيانات الموحدة
                         t_name_val = extract_teacher_from_row(form_row)
-                        spec_val = form_row.get("تخصص الطالب", "")
+                        spec_val = extract_spec_from_row(form_row)
                         title_val = extract_title_from_row(form_row)
-                        form_code_val = form_row.get("رمز الاستمارة", generate_random_code())
+                        form_code_val = str(form_row.iloc[0]).strip() if len(form_row) > 0 else generate_random_code()
 
-                        st2_qr_txt = f" / St2: {st2_ar}" if st2_ar else ""
-                        qr_code_val = f"REF:{form_code_val} | TCH:{t_name_val} | SPEC:{spec_val} | St1:{st1_ar}{st2_qr_txt} | TITLE:{title_val}"
+                        # استرجاع كود التحقق الأصلي المحفوظ أو بناؤه
+                        saved_qr = str(form_row.iloc[9]).strip() if len(form_row) >= 10 and str(form_row.iloc[9]).strip().lower() not in ["", "nan", "none"] else ""
+                        if saved_qr:
+                            qr_code_val = saved_qr
+                        else:
+                            st2_qr_txt = f" / St2: {st2_ar}" if st2_ar else ""
+                            qr_code_val = f"REF:{form_code_val} | TCH:{t_name_val} | SPEC:{spec_val} | St1:{st1_ar}{st2_qr_txt} | TITLE:{title_val}"
 
                         dept_pdf_bytes = generate_pdf_document(
                             form_code_val,
@@ -1858,37 +1874,54 @@ with tab_dept_admin:
                             data=dept_pdf_bytes,
                             file_name=f"{selected_file_label}.pdf",
                             mime="application/pdf",
-                            key="btn_dept_dl_single_v95"
+                            key="btn_dept_dl_single_v97"
                         )
 
                 with col_bulk:
                     st.markdown("#### 📦 تحميل الاستمارات دفعة واحدة (ZIP)")
-                    bulk_choice = st.radio("خيارات التجميع للتحميل الجماعي:", ["جميع الاستمارات بالقسم", "حسب تخصص معين"], horizontal=True, key="rd_bulk_type_v95")
+                    bulk_choice = st.radio("خيارات التجميع للتحميل الجماعي:", ["جميع الاستمارات بالقسم", "حسب تخصص معين"], horizontal=True, key="rd_bulk_type_v97")
                     
                     target_bulk_df = df_final.copy()
                     if bulk_choice == "حسب تخصص معين":
-                        selected_bulk_spec = st.selectbox("اختر التخصص للتنزيل الجماعي:", SPECIALTIES, key="sb_bulk_spec_v95")
-                        target_bulk_df = target_bulk_df[target_bulk_df["تخصص الطالب"] == selected_bulk_spec]
+                        selected_bulk_spec = st.selectbox("اختر التخصص للتنزيل الجماعي:", SPECIALTIES, key="sb_bulk_spec_v97")
+                        spec_col_bulk = [c for c in target_bulk_df.columns if "تخصص" in c or "التخصص" in c]
+                        if spec_col_bulk:
+                            target_bulk_df = target_bulk_df[target_bulk_df[spec_col_bulk[0]] == selected_bulk_spec]
 
-                    if st.button("📦 إنتاج ملف الاستمارات الجماعي (ZIP)", key="btn_gen_bulk_zip_v95"):
+                    if st.button("📦 إنتاج ملف الاستمارات الجماعي (ZIP)", key="btn_gen_bulk_zip_v97"):
                         if not target_bulk_df.empty:
                             zip_buffer = BytesIO()
                             with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
                                 for _, form_row in target_bulk_df.iterrows():
-                                    _, _, st1_ar, r1_v, st2_ar, r2_v = extract_students_data_from_row(form_row)
-                                    raw_st1 = str(form_row.get("اسم الطالب 1", ""))
-                                    raw_st2 = str(form_row.get("اسم الطالب 2", ""))
-                                    st1_fr = raw_st1.split(" (")[1].replace(")", "") if " (" in raw_st1 else ""
-                                    st2_fr = raw_st2.split(" (")[1].replace(")", "") if " (" in raw_st2 else ""
+                                    _, _, raw_st1_comb, r1_v, raw_st2_comb, r2_v = extract_students_data_from_row(form_row)
+                                    
+                                    # فصل الاسم العربي عن الفرنسي بدقة داخل الأرشيف الجماعي أيضاً
+                                    if " (" in raw_st1_comb and raw_st1_comb.endswith(")"):
+                                        st1_ar = raw_st1_comb.split(" (")[0].strip()
+                                        st1_fr = raw_st1_comb.split(" (")[1][:-1].strip()
+                                    else:
+                                        st1_ar = raw_st1_comb.strip()
+                                        st1_fr = ""
+
+                                    if raw_st2_comb and " (" in raw_st2_comb and raw_st2_comb.endswith(")"):
+                                        st2_ar = raw_st2_comb.split(" (")[0].strip()
+                                        st2_fr = raw_st2_comb.split(" (")[1][:-1].strip()
+                                    else:
+                                        st2_ar = raw_st2_comb.strip()
+                                        st2_fr = ""
 
                                     t_name_val = extract_teacher_from_row(form_row)
-                                    spec_val = form_row.get("تخصص الطالب", "")
+                                    spec_val = extract_spec_from_row(form_row)
                                     title_val = extract_title_from_row(form_row)
                                     file_label = form_row.get("اسم_الملف", f"استمارة_{t_name_val}")
-                                    form_code_val = form_row.get("رمز الاستمارة", generate_random_code())
+                                    form_code_val = str(form_row.iloc[0]).strip() if len(form_row) > 0 else generate_random_code()
 
-                                    st2_qr_txt = f" / St2: {st2_ar}" if st2_ar else ""
-                                    qr_code_val = f"REF:{form_code_val} | TCH:{t_name_val} | SPEC:{spec_val} | St1:{st1_ar}{st2_qr_txt} | TITLE:{title_val}"
+                                    saved_qr = str(form_row.iloc[9]).strip() if len(form_row) >= 10 and str(form_row.iloc[9]).strip().lower() not in ["", "nan", "none"] else ""
+                                    if saved_qr:
+                                        qr_code_val = saved_qr
+                                    else:
+                                        st2_qr_txt = f" / St2: {st2_ar}" if st2_ar else ""
+                                        qr_code_val = f"REF:{form_code_val} | TCH:{t_name_val} | SPEC:{spec_val} | St1:{st1_ar}{st2_qr_txt} | TITLE:{title_val}"
 
                                     pdf_data = generate_pdf_document(
                                         form_code_val,
@@ -1907,11 +1940,10 @@ with tab_dept_admin:
                                 data=zip_buffer,
                                 file_name="جميع_الاستمارات_المعتمدة.zip",
                                 mime="application/zip",
-                                key="btn_dl_zip_final_v95"
+                                key="btn_dl_zip_final_v97"
                             )
                         else:
                             st.warning("لا توجد استمارات مطابقة للخيار المحدد.")
-
         with d_tab3:
             st.write("### 📈 التفاصيل والإحصائيات العامة بالقسم")
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
