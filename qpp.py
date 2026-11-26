@@ -1409,7 +1409,7 @@ with tab_teacher:
                         else:
                             st.info("يرجى اختيار المذكرة لعرض معطياتها ومتابعة إنتاج المحضر.")
 
-     with t_sub_tab5:
+    with t_sub_tab5:
         if not st.session_state.teacher_logged_in:
             st.info("⚠️ يرجى تسجيل الدخول أولاً من لسان 'الدخول إلى حسابي'.")
         else:
