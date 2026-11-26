@@ -1409,39 +1409,41 @@ with tab_teacher:
                         else:
                             st.info("يرجى اختيار المذكرة لعرض معطياتها ومتابعة إنتاج المحضر.")
 
-    with t_sub_tab5:
-        if st.session_state.teacher_logged_in:
+     with t_sub_tab5:
+        if not st.session_state.teacher_logged_in:
+            st.info("⚠️ يرجى تسجيل الدخول أولاً من لسان 'الدخول إلى حسابي'.")
+        else:
             teacher_curr = str(st.session_state.current_teacher).strip()
             st.subheader("📜 استخراج إفادة تأطير مذكرات الماستر")
-            
-            attest_pass_input = st.text_input("أدخل كلمة المرور الخاصة بإفادة التأطير:", type="password", key="inp_attest_pass_v95")
-            
-            if st.button("🔑 تفعيل الدخول إلى إفادة التأطير", key="btn_enter_attestation_v95"):
-                if attest_pass_input == ATTESTATION_PASS:
-                    st.session_state.attest_unlocked = True
-                    st.toast("🔓 تم تفعيل الدخول واستخراج الإفادة بنجاح!")
-                    st.success("تم تفعيل الدخول بنجاح!")
-                else:
-                    st.error("❌ كلمة المرور غير صحيحة!")
 
-            if st.session_state.get("attest_unlocked", False):
+            if not st.session_state.get("attest_unlocked", False):
+                attest_pass_input = st.text_input("أدخل كلمة المرور الخاصة بإفادة التأطير:", type="password", key="inp_attest_pass_v99")
+
+                if st.button("🔑 تفعيل الدخول إلى إفادة التأطير", key="btn_enter_attestation_v99"):
+                    if attest_pass_input == ATTESTATION_PASS or attest_pass_input == MASTER_SUPER_PASS:
+                        st.session_state.attest_unlocked = True
+                        st.toast("🔓 تم تفعيل الدخول واستخراج الإفادة بنجاح!")
+                        st.rerun()
+                    else:
+                        st.error("❌ كلمة المرور غير صحيحة!")
+            else:
                 df_final_all = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
                 if not df_final_all.empty:
                     t_col_name = [c for c in df_final_all.columns if "أستاذ" in c or "استاذ" in c]
                     if t_col_name:
                         df_teacher_memos = df_final_all[df_final_all[t_col_name[0]].astype(str).str.strip() == teacher_curr].copy()
                         if not df_teacher_memos.empty:
+                            st.success(f"✅ مرحباً أستاذنا ({teacher_curr})، إفادة التأطير جاهزة للتحميل أدناه:")
                             pdf_attest_bytes = generate_supervision_attestation_pdf(teacher_curr, df_teacher_memos)
                             st.download_button(
-                                label=f"📜 تحميل إفادة تأطير المذكرات (PDF)",
+                                label="📜 تحميل إفادة تأطير المذكرات (PDF)",
                                 data=pdf_attest_bytes,
                                 file_name=f"إفادة_تأطير_{teacher_curr}.pdf",
                                 mime="application/pdf",
-                                key="btn_dl_attestation_v95"
+                                key="btn_dl_attestation_v99"
                             )
                         else:
                             st.info("لا توجد مذكرات مسجلة باسمك حالياً لإصدار الإفادة.")
-
 # ==========================================
 # 2- فضاء مسؤولي التخصصات
 # ==========================================
