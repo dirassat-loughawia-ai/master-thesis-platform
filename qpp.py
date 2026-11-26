@@ -1949,39 +1949,54 @@ with tab_dept_admin:
             df_final = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
             df_teachers = load_data_from_sheet(SHEET_TEACHERS)
             
-            spec_col = [c for c in df_final.columns if "تخصص" in c or "التخصص" in c]
             t_col = [c for c in df_final.columns if "أستاذ" in c or "استاذ" in c]
 
             if not df_final.empty:
                 c_col_st1 = [c for c in df_final.columns if "طالب" in c and "1" in c]
                 c_col_st2 = [c for c in df_final.columns if "طالب" in c and "2" in c]
 
-                st1_cnt = len(df_final[c_col_st1[0]].dropna().unique()) if c_col_st1 else 0
-                st2_cnt = len([s for s in df_final[c_col_st2[0]].dropna().unique() if str(s).strip() and str(s).strip().lower() not in ['---', 'nan', 'none', 'null', 'لا يوجد / خيار فردي']]) if c_col_st2 else 0
+                invalid_vals = ['', '---', 'nan', 'none', 'null', 'لا يوجد / خيار فردي']
+                
+                all_students_records = []
+                single_student_memos = []
 
-                c_m1, c_m2, c_m3 = st.columns(3)
-                with c_m1: st.metric("إجمالي المذكرات المسجلة", len(df_final))
-                with c_m2: st.metric("إجمالي الأساتذة المشرفين", df_final[t_col[0]].nunique() if t_col else 0)
-                with c_m3: st.metric("إجمالي الطلبة المسجلين", st1_cnt + st2_cnt)
+                for idx, row in df_final.iterrows():
+                    s1 = str(row[c_col_st1[0]]).strip() if c_col_st1 else ""
+                    s2 = str(row[c_col_st2[0]]).strip() if c_col_st2 else ""
+                    tch = extract_teacher_from_row(row)
+                    ttl = extract_title_from_row(row)
+                    spc = extract_spec_from_row(row)
 
-            st.markdown("---")
-            st.write("#### 📋 جدول جميع أساتذة القسم مع عدد المذكرات المسجلة لكل أستاذ:")
-            
-            t_name_col = [c for c in df_teachers.columns if "الاسم" in c or "اللقب" in c][0] if not df_teachers.empty else "اسم الأستاذ"
-            teachers_all_list = df_teachers[t_name_col].dropna().unique().tolist() if not df_teachers.empty else []
+                    if s1.lower() not in invalid_vals:
+                        all_students_records.append({"الطالب": s1, "المشرف": tch, "التخصص": spc, "العنوان": ttl, "الخانة": "الطالب 1"})
+                    
+                    if s2.lower() not in invalid_vals:
+                        all_students_records.append({"الطالب": s2, "المشرف": tch, "التخصص": spc, "العنوان": ttl, "الخانة": "الطالب 2"})
+                    else:
+                        single_student_memos.append({"المشرف": tch, "التخصص": spc, "الطالب الوحيد": s1, "عنوان المذكرة": ttl})
 
-            teacher_memos_count = []
-            for tch in teachers_all_list:
-                cnt = 0
-                if not df_final.empty and t_col:
-                    cnt = len(df_final[df_final[t_col[0]].astype(str).str.strip() == str(tch).strip()])
-                teacher_memos_count.append({"اسم الأستاذ": tch, "عدد المذكرات المسجلة": cnt})
+                df_all_st = pd.DataFrame(all_students_records)
+                unique_students_count = df_all_st["الطالب"].nunique() if not df_all_st.empty else 0
 
-            df_tch_stats = pd.DataFrame(teacher_memos_count)
-            if not df_tch_stats.empty:
-                df_tch_stats.index = range(1, len(df_tch_stats) + 1)
-                st.dataframe(df_tch_stats, use_container_width=True)
+                c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+                with c_m1: st.metric("إجمالي المذكرات", len(df_final))
+                with c_m2: st.metric("الطلبة الفعليون (بدون تكرار)", unique_students_count)
+                with c_m3: st.metric("مذكرات بطالب واحد", len(single_student_memos))
+                with c_m4: st.metric("الأساتذة المشرفون", df_final[t_col[0]].nunique() if t_col else 0)
 
+                # كاشف التكرار الآلي
+                if not df_all_st.empty:
+                    dup_students = df_all_st[df_all_st.duplicated(subset=["الطالب"], keep=False)].sort_values(by="الطالب")
+                    if not dup_students.empty:
+                        st.error(f"⚠️ تنبيه: تم اكتشاف ({dup_students['الطالب'].nunique()}) طالب/طلبة مكررين في أكثر من مذكرة!")
+                        st.dataframe(dup_students, use_container_width=True)
+                    else:
+                        st.success("✅ ممتاز: لا يوجد أي طالب مكرر بين المذكرات المسجلة.")
+
+                # كاشف المذكرات الفردية
+                if single_student_memos:
+                    st.warning(f"ℹ️ توجد ({len(single_student_memos)}) مذكرة مسجلة بطالب واحد فقط:")
+                    st.dataframe(pd.DataFrame(single_student_memos), use_container_width=True)
                 pdf_tch_stats_bytes = generate_teachers_stats_pdf(df_tch_stats)
                 st.download_button(
                     label="🖨️ طباعة تقرير إحصائيات الأساتذة الشامل مع الترويسة (PDF)",
