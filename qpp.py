@@ -631,14 +631,43 @@ def generate_qr_code_image(data_text):
     buf.seek(0)
     return buf
 
+def format_multiline_arabic_for_paragraph(text, font_name, font_size, max_width):
+    """تقسيم النص العربي إلى أسطر مرتبة من الأعلى للأسفل دون انقلاب عند التفاف الفقرة"""
+    raw = str(text).strip() if text else ""
+    if not raw:
+        return ""
+    words = raw.split()
+    lines = []
+    current_line = []
+    for word in words:
+        test_line = " ".join(current_line + [word])
+        if pdfmetrics.stringWidth(reshape_arabic(test_line), font_name, font_size) <= max_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+    if current_line:
+        lines.append(" ".join(current_line))
+    return "<br/>".join([reshape_arabic(line) for line in lines])
+
+
 def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=25, leftMargin=25, topMargin=15, bottomMargin=15)
-    
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=25,
+        bottomMargin=160  # مساحة محجوزة في الأسفل للأختام والتاريخ
+    )
+
     header_style = ParagraphStyle('HeaderStyle', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER, leading=19)
     intro_style = ParagraphStyle('IntroStyle', fontName=ARABIC_FONT, fontSize=13, alignment=TA_CENTER, leading=22)
     teacher_style = ParagraphStyle('TeacherStyle', fontName=ARABIC_FONT_BOLD, fontSize=16, alignment=TA_CENTER, leading=24)
-    cell_style = ParagraphStyle('TableCell', fontName=ARABIC_FONT, fontSize=11, alignment=TA_CENTER, leading=16)
+    cell_center_style = ParagraphStyle('TableCellCenter', fontName=ARABIC_FONT, fontSize=11.5, alignment=TA_CENTER, leading=17)
+    cell_right_style = ParagraphStyle('TableCellRight', fontName=ARABIC_FONT_BOLD, fontSize=11.5, alignment=TA_RIGHT, leading=18)
     header_cell_style = ParagraphStyle('HeaderCell', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER, textColor=colors.white)
 
     story = []
@@ -648,10 +677,13 @@ def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
     story.append(Paragraph(reshape_arabic("وزارة التعليم العالي والبحث العلمي"), header_style))
     story.append(Paragraph(reshape_arabic("جامعة الوادي - كلية الآداب واللغات"), header_style))
     story.append(Paragraph(reshape_arabic("قسم اللغة والأدب العربي"), header_style))
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 18))
 
-    title_text = Paragraph(reshape_arabic("إفادة تأطير مذكرات ماستر"), ParagraphStyle('AttTitle', fontName=ARABIC_FONT_BOLD, fontSize=22, alignment=TA_CENTER, textColor=colors.HexColor('#0f172a')))
-    title_table = Table([[title_text]], colWidths=[540])
+    title_text = Paragraph(
+        reshape_arabic("إفادة تأطير مذكرات ماستر"),
+        ParagraphStyle('AttTitle', fontName=ARABIC_FONT_BOLD, fontSize=22, alignment=TA_CENTER, textColor=colors.HexColor('#0f172a'))
+    )
+    title_table = Table([[title_text]], colWidths=[550])
     title_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f1f5f9')),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -661,11 +693,11 @@ def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
         ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
     ]))
     story.append(title_table)
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 18))
 
-    line1 = reshape_arabic("يفيد السيد رئيس قسم اللغة والأدب العربي أن الأستاذ(ة)")
+    line1 = reshape_arabic("يفيد السيد رئيس قسم اللغة والأدب العربي أن الأستاذ(ة):")
     line2 = f"<b>{reshape_arabic(teacher_name)}</b>"
-    line3 = reshape_arabic("تـ/ـتشرف على مذكرات ماستر خلال السنة الجامعية 2026-2027، كما هو مبين أدناه")
+    line3 = reshape_arabic("يُـ/تُـشرف على مذكرات ماستر خلال السنة الجامعية 2026-2027، كما هو مبين أدناه:")
 
     story.append(Paragraph(line1, intro_style))
     story.append(Spacer(1, 6))
@@ -675,132 +707,91 @@ def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
     story.append(Spacer(1, 18))
 
     qr_memos_info = f"إفادة تأطير - رقم: {attestation_code}\nالمشرف: {teacher_name}\nعدد المذكرات: {len(df_teacher_memos)}"
-
     primary_specialty = "لسانيات عامة"
+
     if not df_teacher_memos.empty:
-        raw_headers = ["الرقم", "التخصص", "عنوان المذكرة"]
+        # ترتيب الأعمدة من اليمين إلى اليسار: [عنوان المذكرة (يسار) | التخصص (وسط) | الرقم (يمين)]
+        raw_headers = ["عنوان المذكرة", "التخصص", "الرقم"]
         table_data = [[Paragraph(reshape_arabic(h), header_cell_style) for h in raw_headers]]
 
-        spec_col = [c for c in df_teacher_memos.columns if "تخصص" in c or "التخصص" in c]
-        spec_col_name = spec_col[0] if spec_col else "تخصص الطالب"
-        primary_specialty = str(df_teacher_memos.iloc[0].get(spec_col_name, "لسانيات عامة")).strip()
+        primary_specialty = extract_spec_from_row(df_teacher_memos.iloc[0])
 
         for idx, (_, row) in enumerate(df_teacher_memos.iterrows(), 1):
             memo_title = extract_title_from_row(row)
-            memo_spec = str(row.get(spec_col_name, "")).strip()
+            memo_spec = extract_spec_from_row(row)
+
+            # تنسيق عنوان المذكرة متعدد الأسطر بالترتيب الصحيح من اليمين لليسار
+            formatted_title = format_multiline_arabic_for_paragraph(memo_title, ARABIC_FONT_BOLD, 11.5, max_width=325)
+            formatted_spec = format_multiline_arabic_for_paragraph(memo_spec, ARABIC_FONT, 11.5, max_width=145)
 
             row_cells = [
-                Paragraph(str(idx), cell_style),
-                Paragraph(reshape_arabic(memo_spec), cell_style),
-                Paragraph(reshape_arabic(memo_title), cell_style)
+                Paragraph(formatted_title, cell_right_style),
+                Paragraph(formatted_spec, cell_center_style),
+                Paragraph(str(idx), cell_center_style)
             ]
             table_data.append(row_cells)
 
-        t = Table(table_data, colWidths=[40, 160, 340])
+        t = Table(table_data, colWidths=[345, 160, 45])
         t.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),    # عمود العنوان محاذاة يمين
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # التخصص والرقم توسيط
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),   # ترويسة الجدول توسيط
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (0, -1), 10),
         ]))
         story.append(t)
 
-    story.append(Spacer(1, 30))
-    story.append(Paragraph(reshape_arabic(f"حرر بالوادي في: {datetime.now().strftime('%Y/%m/%d')}"), ParagraphStyle('DateStyle', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER)))
-    story.append(Spacer(1, 15))
+    # دالة رسم الترويسة + تثبيت الأختام والـ QR في الأسفل على بعد 3 سم (85 نقطة) من حافة الورقة السفلية
+    def draw_attestation_header_and_fixed_footer(can, doc_obj):
+        page_width, page_height = letter
+        draw_header_icons(can, page_width, page_height)
 
-    sign1_img = make_reportlab_image("sign1.png", width=110, height=55)
-    sign1_element = sign1_img if sign1_img else Paragraph("", intro_style)
+        # 3 سم من الحافة السفلية تعادل حوالي 85 نقطة (1 سم ≈ 28.35 نقطة)
+        bottom_margin_3cm = 85
 
-    sign_file = "sign2.png" if "لسانيات" in primary_specialty else "sign3.png"
-    sign_dept_img = make_reportlab_image(sign_file, width=130, height=65)
-    sign_dept_element = sign_dept_img if sign_dept_img else Paragraph("", intro_style)
+        # التاريخ أعلى الأختام مباشرة
+        can.setFont(ARABIC_FONT_BOLD, 13)
+        date_str = reshape_arabic(f"حرر بالوادي في: {datetime.now().strftime('%Y/%m/%d')}")
+        can.drawCentredString(page_width / 2.0, bottom_margin_3cm + 95, date_str)
 
-    qr_att_buf = generate_qr_code_image(qr_memos_info)
-    qr_img = RLImage(qr_att_buf, width=75, height=75)
-    
-    sig_table_data = [
-        [
-            Paragraph(reshape_arabic("رئيس القسم"), ParagraphStyle('SigLeft', fontName=ARABIC_FONT_BOLD, fontSize=15, alignment=TA_CENTER)),
-            Paragraph(reshape_arabic("رمز التحقق (QR Code)"), ParagraphStyle('SigCenter', fontName=ARABIC_FONT_BOLD, fontSize=11, alignment=TA_CENTER)),
-            Paragraph(reshape_arabic("مسؤول الشعبة"), ParagraphStyle('SigRight', fontName=ARABIC_FONT_BOLD, fontSize=15, alignment=TA_CENTER))
-        ],
-        [sign1_element, qr_img, sign_dept_element]
-    ]
-    sig_table = Table(sig_table_data, colWidths=[185, 170, 185])
-    sig_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    story.append(sig_table)
+        # عناوين التواقيع
+        can.setFont(ARABIC_FONT_BOLD, 14)
+        can.drawCentredString(120, bottom_margin_3cm + 68, reshape_arabic("رئيس القسم"))
+        can.setFont(ARABIC_FONT_BOLD, 11)
+        can.drawCentredString(page_width / 2.0, bottom_margin_3cm + 68, reshape_arabic("رمز التحقق (QR Code)"))
+        can.setFont(ARABIC_FONT_BOLD, 14)
+        can.drawCentredString(page_width - 120, bottom_margin_3cm + 68, reshape_arabic("مسؤول الشعبة"))
 
-    doc.build(story, onFirstPage=render_page_header_first_only)
+        # ختم رئيس القسم (يسار)
+        sign1_b = get_github_file_bytes("sign1.png")
+        if sign1_b:
+            try:
+                can.drawImage(ImageReader(BytesIO(sign1_b)), 65, bottom_margin_3cm + 5, width=110, height=55, mask='auto')
+            except Exception:
+                pass
+
+        # رمز QR في الوسط
+        qr_att_buf = generate_qr_code_image(qr_memos_info)
+        can.drawImage(ImageReader(qr_att_buf), (page_width / 2.0) - 35, bottom_margin_3cm - 5, width=70, height=70)
+
+        # ختم مسؤول الشعبة (يمين)
+        sign_file = "sign2.png" if "لسانيات" in str(primary_specialty) else "sign3.png"
+        sign_dept_b = get_github_file_bytes(sign_file)
+        if sign_dept_b:
+            try:
+                can.drawImage(ImageReader(BytesIO(sign_dept_b)), page_width - 185, bottom_margin_3cm, width=130, height=65, mask='auto')
+            except Exception:
+                pass
+
+    doc.build(story, onFirstPage=draw_attestation_header_and_fixed_footer)
     buffer.seek(0)
     return buffer.getvalue()
-
-def generate_general_report_pdf(df_data, selected_specs, title_prefix="التقرير العام"):
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     
-    header_style = ParagraphStyle('HeaderStyle', fontName=ARABIC_FONT_BOLD, fontSize=11, alignment=TA_CENTER, leading=16)
-    title_style = ParagraphStyle('ReportTitle', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER, leading=18, spaceAfter=15)
-    cell_style = ParagraphStyle('TableCell', fontName=ARABIC_FONT, fontSize=9, alignment=TA_CENTER, leading=12)
-    header_cell_style = ParagraphStyle('HeaderCell', fontName=ARABIC_FONT_BOLD, fontSize=10, alignment=TA_CENTER, textColor=colors.white)
-
-    story = []
-
-    story.append(Paragraph(reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"), header_style))
-    story.append(Paragraph(reshape_arabic("وزارة التعليم العالي والبحث العلمي"), header_style))
-    story.append(Paragraph(reshape_arabic("جامعة الوادي - كلية الآداب واللغات"), header_style))
-    story.append(Paragraph(reshape_arabic("قسم اللغة والأدب العربي"), header_style))
-    story.append(Spacer(1, 10))
-
-    spec_col = [c for c in df_data.columns if "تخصص" in c or "التخصص" in c]
-    spec_col_name = spec_col[0] if spec_col else "تخصص الطالب"
-    
-    df_filtered = df_data[df_data[spec_col_name].isin(selected_specs)].copy() if (selected_specs and spec_col_name in df_data.columns) else df_data.copy()
-    specs_str = " - ".join(selected_specs) if selected_specs else "جميع التخصصات"
-    
-    story.append(Paragraph(reshape_arabic(f"{title_prefix}"), title_style))
-    story.append(Paragraph(reshape_arabic(f"السنة الجامعية: 2026-2027 | التخصصات: {specs_str}"), header_style))
-    story.append(Spacer(1, 15))
-
-    if not df_filtered.empty:
-        raw_headers = ["م", "المشرف", "التخصص", "الطلبة المسجلون", "عنوان المذكرة"]
-        table_data = [[Paragraph(reshape_arabic(h), header_cell_style) for h in raw_headers]]
-
-        for idx, (_, row) in enumerate(df_filtered.iterrows(), 1):
-            tch_name = extract_teacher_from_row(row)
-            st1_f, st2_f, _, _, _, _ = extract_students_data_from_row(row)
-            students_comb = f"{st1_f}\n{st2_f}" if st2_f else st1_f
-            memo_title = extract_title_from_row(row)
-
-            row_cells = [
-                Paragraph(str(idx), cell_style),
-                Paragraph(reshape_arabic(tch_name), cell_style),
-                Paragraph(reshape_arabic(str(row.get(spec_col_name, ""))), cell_style),
-                Paragraph(reshape_arabic(students_comb), cell_style),
-                Paragraph(reshape_arabic(memo_title), cell_style)
-            ]
-            table_data.append(row_cells)
-
-        t = Table(table_data, colWidths=[25, 105, 100, 160, 150])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
-        ]))
-        story.append(t)
-    else:
-        story.append(Paragraph(reshape_arabic("لا توجد بيانات مطابقة."), title_style))
-
-    doc.build(story, onFirstPage=render_page_header_first_only)
-    buffer.seek(0)
-    return buffer.getvalue()
-
 def generate_teachers_stats_pdf(df_teachers_stats):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
