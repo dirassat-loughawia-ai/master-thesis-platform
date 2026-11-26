@@ -746,12 +746,12 @@ def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
         ]))
         story.append(t)
 
-    # دالة رسم الترويسة + تثبيت الأختام والـ QR في الأسفل على بعد 5 سم (140 نقطة) من حافة الورقة السفلية
+    # دالة رسم الترويسة + تثبيت الأختام والـ QR في الأسفل على بعد 6.70 سم (190 نقطة) من حافة الورقة السفلية
     def draw_attestation_header_and_fixed_footer(can, doc_obj):
         page_width, page_height = letter
         draw_header_icons(can, page_width, page_height)
 
-        # 3 سم من الحافة السفلية تعادل حوالي 140 نقطة (1 سم ≈ 28.35 نقطة)
+        # 3 سم من الحافة السفلية تعادل حوالي 190 نقطة (1 سم ≈ 28.35 نقطة)
         bottom_margin_3cm = 140
 
         # التاريخ أعلى الأختام مباشرة
