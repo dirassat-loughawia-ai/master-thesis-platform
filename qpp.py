@@ -1997,13 +1997,32 @@ with tab_dept_admin:
                 if single_student_memos:
                     st.warning(f"ℹ️ توجد ({len(single_student_memos)}) مذكرة مسجلة بطالب واحد فقط:")
                     st.dataframe(pd.DataFrame(single_student_memos), use_container_width=True)
+
+            st.markdown("---")
+            st.write("#### 📋 جدول جميع أساتذة القسم مع عدد المذكرات المسجلة لكل أستاذ:")
+            
+            t_name_col = [c for c in df_teachers.columns if "الاسم" in c or "اللقب" in c][0] if not df_teachers.empty else "اسم الأستاذ"
+            teachers_all_list = df_teachers[t_name_col].dropna().unique().tolist() if not df_teachers.empty else []
+
+            teacher_memos_count = []
+            for tch in teachers_all_list:
+                cnt = 0
+                if not df_final.empty and t_col:
+                    cnt = len(df_final[df_final[t_col[0]].astype(str).str.strip() == str(tch).strip()])
+                teacher_memos_count.append({"اسم الأستاذ": tch, "عدد المذكرات المسجلة": cnt})
+
+            df_tch_stats = pd.DataFrame(teacher_memos_count)
+            if not df_tch_stats.empty:
+                df_tch_stats.index = range(1, len(df_tch_stats) + 1)
+                st.dataframe(df_tch_stats, use_container_width=True)
+
                 pdf_tch_stats_bytes = generate_teachers_stats_pdf(df_tch_stats)
                 st.download_button(
                     label="🖨️ طباعة تقرير إحصائيات الأساتذة الشامل مع الترويسة (PDF)",
                     data=pdf_tch_stats_bytes,
                     file_name="تقرير_إحصائيات_أساتذة_القسم.pdf",
                     mime="application/pdf",
-                    key="btn_dl_tch_stats_pdf_v95"
+                    key="btn_dl_tch_stats_pdf_v98"
                 )
 
         with d_tab4:
