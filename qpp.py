@@ -752,7 +752,7 @@ def generate_supervision_attestation_pdf(teacher_name, df_teacher_memos):
         draw_header_icons(can, page_width, page_height)
 
         # 3 سم من الحافة السفلية تعادل حوالي 190 نقطة (1 سم ≈ 28.35 نقطة)
-        bottom_margin_3cm = 140
+        bottom_margin_3cm = 190
 
         # التاريخ أعلى الأختام مباشرة
         can.setFont(ARABIC_FONT_BOLD, 13)
