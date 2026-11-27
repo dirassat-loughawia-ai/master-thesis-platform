@@ -389,238 +389,150 @@ def draw_header_icons(can, page_width, page_height):
 def render_page_header_first_only(can, doc):
     page_width, page_height = letter
     draw_header_icons(can, page_width, page_height)
-
-# --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
-def generate_pv_pdf_document(teacher_name, specialty, title, st1_full_str, st2_full_str, pv_day, pv_date):
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=30,
-        leftMargin=30,
-        topMargin=20,
-        bottomMargin=20
-    )
-
-    h_style = ParagraphStyle('HStyle', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER, leading=19)
-    # عنوان ضخم جداً بأسود عريض
-    title_style = ParagraphStyle('PVTitleHuge', fontName=ARABIC_FONT_BOLD, fontSize=24, alignment=TA_CENTER, leading=30, spaceBefore=14, spaceAfter=14)
-    body_style = ParagraphStyle('PVBodyLarge', fontName=ARABIC_FONT, fontSize=13.5, alignment=TA_RIGHT, leading=22)
-    center_bold_student = ParagraphStyle('PVStudentCenterBold', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER, leading=22)
-    cell_style = ParagraphStyle('PVCell', fontName=ARABIC_FONT, fontSize=12, alignment=TA_CENTER, leading=18)
-    cell_bold = ParagraphStyle('PVCellBold', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER, leading=18)
-
-    story = []
-
-    # الترويسة
-    story.append(Paragraph(reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"), h_style))
-    story.append(Paragraph(reshape_arabic("وزارة التعليم العالي والبحث العلمي"), h_style))
-    story.append(Paragraph(reshape_arabic("جامعة الوادي - كلية الآداب واللغات"), h_style))
-    story.append(Paragraph(reshape_arabic("قسم اللغة والأدب العربي"), h_style))
-    story.append(Spacer(1, 10))
-
-    # العنوان أكبر بأسود عريض
-    story.append(Paragraph(reshape_arabic("محضر مناقشة مذكرة ماستر"), title_style))
-    story.append(Spacer(1, 10))
-
-    txt_intro = reshape_arabic(f"إنه في يوم {pv_day} الموافق لـ: {pv_date}، اجتمعت لجنة مناقشة مذكرة تخرج لنيل شهادة الماستر في تخصص: {specialty}.")
-    story.append(Paragraph(txt_intro, body_style))
-    story.append(Spacer(1, 8))
-
-    txt_title = reshape_arabic(f"التي عنوانها: « {title} »")
-    story.append(Paragraph(txt_title, body_style))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph(reshape_arabic("للطالبين الآتي اسماهما:"), ParagraphStyle('BoldRight', fontName=ARABIC_FONT_BOLD, fontSize=13.5, alignment=TA_RIGHT)))
-    story.append(Spacer(1, 6))
-
-    # توسيط اسمي الطالبين وجعلهما بأسود عريض
-    if st1_full_str:
-        story.append(Paragraph(reshape_arabic(f"• {st1_full_str}"), center_bold_student))
-
-    if st2_full_str and st2_full_str.strip().lower() not in ["", "---", "nan", "none", "null", "لا يوجد / خيار فردي"]:
-        story.append(Spacer(1, 4))
-        story.append(Paragraph(reshape_arabic(f"• {st2_full_str}"), center_bold_student))
-
-    # سطرين فارغين قبل عنوان أعضاء اللجنة
-    story.append(Spacer(1, 20))
-    story.append(Paragraph(reshape_arabic("أعضاء اللجنة"), ParagraphStyle('CenterBoldTitle', fontName=ARABIC_FONT_BOLD, fontSize=15, alignment=TA_CENTER)))
-    # سطرين فارغين بعد عنوان أعضاء اللجنة
-    story.append(Spacer(1, 20))
-
-    table_headers = [Paragraph(reshape_arabic("التوقيع"), cell_bold), Paragraph(reshape_arabic("الصفة"), cell_bold), Paragraph(reshape_arabic("الأستاذ -ة-"), cell_bold)]
+def get_student_birth_info(matr_num, specialty):
+    """البحث عن تاريخ ومكان ميلاد الطالب في شيت قوائم الطلبة باستخدام رقم التسجيل"""
+    if not matr_num or str(matr_num).strip().lower() in ["", "nan", "none"]:
+        return "", ""
     
-    t_data = [
-        table_headers,
-        [Paragraph("", cell_style), Paragraph(reshape_arabic("رئيساً"), cell_style), Paragraph("", cell_style)],
-        [Paragraph("", cell_style), Paragraph(reshape_arabic("مشرفاً ومقرراً"), cell_style), Paragraph(reshape_arabic(teacher_name), cell_bold)],
-        [Paragraph("", cell_style), Paragraph(reshape_arabic("مناقشاً"), cell_style), Paragraph("", cell_style)],
-    ]
+    df_students = load_data_from_sheet(SHEET_STUDENTS)
+    if df_students.empty:
+        return "", ""
+        
+    matr_clean = str(matr_num).strip()
+    suffix = SPEC_SUFFIX_MAP.get(specialty, "")
+    
+    # تحديد أعمدة رقم التسجيل وتاريخ ومكان الميلاد
+    matr_cols = [c for c in df_students.columns if f"matr{suffix}" in c] if suffix else [c for c in df_students.columns if "matr" in c.lower() or "تسجيل" in c]
+    dob_cols = [c for c in df_students.columns if (f"date{suffix}" in c.lower() or f"nais{suffix}" in c.lower() or "ميلاد" in c or "تاريخ" in c) and "مكان" not in c and "lieu" not in c.lower()]
+    pob_cols = [c for c in df_students.columns if f"lieu{suffix}" in c.lower() or "مكان" in c]
 
-    t_committee = Table(t_data, colWidths=[130, 140, 250])
-    t_committee.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('GRID', (0, 0), (-1, -1), 0.6, colors.HexColor('#0f172a')),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
-        ('TOPPADDING', (0, 0), (-1, -1), 7),
-    ]))
-    story.append(t_committee)
-    story.append(Spacer(1, 12))
-
-    story.append(Paragraph(reshape_arabic("وبعد المناقشة العلنية والمداولات السرية قررت اللجنة منح ملاحظة: ............................................................."), body_style))
-    story.append(Spacer(1, 8))
-
-    st1_ar_only = st1_full_str.split(" (")[0] if " (" in st1_full_str else st1_full_str
-    mark_txt_1 = reshape_arabic(f"وعلامة:  [ ..... / 20 ]  للطالب(ة): {st1_ar_only}")
-    story.append(Paragraph(mark_txt_1, body_style))
-
-    if st2_full_str and st2_full_str.strip().lower() not in ["", "---", "nan", "none", "null", "لا يوجد / خيار فردي"]:
-        story.append(Spacer(1, 6))
-        st2_ar_only = st2_full_str.split(" (")[0] if " (" in st2_full_str else st2_full_str
-        mark_txt_2 = reshape_arabic(f"وعلامة:  [ ..... / 20 ]  للطالب(ة): {st2_ar_only}")
-        story.append(Paragraph(mark_txt_2, body_style))
-
-    story.append(Spacer(1, 20))
-
-    footer_table_data = [
-        [
-            Paragraph(reshape_arabic("رئيس القسم"), ParagraphStyle('SigDept', fontName=ARABIC_FONT_BOLD, fontSize=14, alignment=TA_CENTER)),
-            Paragraph(reshape_arabic("حرر بالوادي في: ........................."), ParagraphStyle('SigDate', fontName=ARABIC_FONT_BOLD, fontSize=13, alignment=TA_CENTER))
-        ]
-    ]
-    t_footer = Table(footer_table_data, colWidths=[260, 260])
-    t_footer.setStyle(TableStyle([('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
-    story.append(t_footer)
-
-    doc.build(story, onFirstPage=render_page_header_first_only)
-    buffer.seek(0)
-    return buffer.getvalue()
-def generate_pdf_document(form_code, teacher_name, specialty, st1_ar, st1_fr, st1_reg, st2_ar, st2_fr, st2_reg, title, qr_code_str):
+    for m_col in matr_cols:
+        matched = df_students[df_students[m_col].astype(str).str.strip() == matr_clean]
+        if not matched.empty:
+            row = matched.iloc[0]
+            dob = str(row[dob_cols[0]]).strip() if dob_cols and str(row[dob_cols[0]]).strip().lower() not in ["", "nan", "none"] else ""
+            pob = str(row[pob_cols[0]]).strip() if pob_cols and str(row[pob_cols[0]]).strip().lower() not in ["", "nan", "none"] else ""
+            return dob, pob
+            
+    return "", ""
+# --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
+def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info, pv_day, pv_date, president_name="", examiner_name=""):
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
     page_width, page_height = letter
     center_x = page_width / 2.0
 
-    # 1. الإطار الخارجي والترويسة
+    # الإطار الخارجي والترويسة
     can.setLineWidth(2)
     can.rect(20, 20, page_width - 40, page_height - 40)
     draw_header_icons(can, page_width, page_height)
 
-    can.setFont(ARABIC_FONT_BOLD, 15)
-    can.drawCentredString(center_x, page_height - 38, reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"))
     can.setFont(ARABIC_FONT_BOLD, 14)
+    can.drawCentredString(center_x, page_height - 38, reshape_arabic("الجمهورية الجزائرية الديمقراطية الشعبية"))
+    can.setFont(ARABIC_FONT_BOLD, 13)
     can.drawCentredString(center_x, page_height - 55, reshape_arabic("وزارة التعليم العالي والبحث العلمي"))
-    can.setFont(ARABIC_FONT_BOLD, 15)
-    can.drawCentredString(center_x, page_height - 73, reshape_arabic("جامعة الوادي - كلية الآداب واللغات"))
+    can.setFont(ARABIC_FONT_BOLD, 14)
+    can.drawCentredString(center_x, page_height - 72, reshape_arabic("جامعة الوادي - كلية الآداب واللغات"))
+    can.setFont(ARABIC_FONT_BOLD, 13)
+    can.drawCentredString(center_x, page_height - 89, reshape_arabic("قسم اللغة والأدب العربي"))
 
     can.setLineWidth(1)
-    can.line(30, page_height - 82, page_width - 30, page_height - 82)
+    can.line(30, page_height - 98, page_width - 30, page_height - 98)
 
+    can.setFont(ARABIC_FONT_BOLD, 20)
+    can.drawCentredString(center_x, page_height - 125, reshape_arabic("محضر مناقشة مذكرة ماستر"))
     can.setFont(ARABIC_FONT_BOLD, 13)
-    can.drawCentredString(center_x, page_height - 100, reshape_arabic("قسم اللغة والأدب العربي"))
-    can.setFont(ARABIC_FONT_BOLD, 14)
-    can.drawCentredString(center_x, page_height - 118, reshape_arabic(f"السنة الجامعية: 2026-2027 | رمز الاستمارة: {form_code}"))
+    can.drawCentredString(center_x, page_height - 146, reshape_arabic(f"السنة الجامعية: 2026-2027  |  التخصص: {specialty}"))
 
-    can.setFont(ARABIC_FONT_BOLD, 24)
-    can.drawCentredString(center_x, page_height - 152, reshape_arabic("استمارة تسجيل مذكرة ماستر"))
-    can.setFont(ARABIC_FONT_BOLD, 15)
-    can.drawCentredString(center_x, page_height - 182, reshape_arabic(f"التخصص: {specialty}"))
-    can.setFont(ARABIC_FONT_BOLD, 16)
-    can.drawCentredString(center_x, page_height - 210, reshape_arabic(f"الأستاذ المشرف: {teacher_name}"))
-    can.setFont(ARABIC_FONT_BOLD, 17)
-    can.drawCentredString(center_x, page_height - 235, reshape_arabic("عنوان المذكرة:"))
+    # ديباجة المحضر
+    can.setFont(ARABIC_FONT, 12)
+    intro_line = f"في يوم {pv_day} الموافق لـ {pv_date}، اجتمعت لجنة المناقشة المعينة من طرف إدارة القسم والمكونة من:"
+    can.drawRightString(page_width - 40, page_height - 175, reshape_arabic(intro_line))
 
-    # 2. تقسيم وتنسيق العنوان ديناميكياً بدون تشويه الخط أو انعكاسه
-    raw_title = str(title).strip() if title else ""
-    full_title_str = f"« {raw_title} »"
-    
-    max_title_width = page_width - 110  # اقصى عرض متاح للسطر داخل المستطيل
-    can.setFont(ARABIC_FONT_BOLD, 15)
+    # جدول لجنة المناقشة (الرئيس، المشرف، الممتحن)
+    jury_style_h = ParagraphStyle('JuryH', fontName=ARABIC_FONT_BOLD, fontSize=11, alignment=TA_CENTER, textColor=colors.white)
+    jury_style_c = ParagraphStyle('JuryC', fontName=ARABIC_FONT_BOLD, fontSize=11, alignment=TA_CENTER)
 
-    # دالة لتقسيم الكلمات على أسطر
-    words = full_title_str.split()
-    lines = []
-    current_line = []
+    jury_data = [
+        [Paragraph(reshape_arabic("الصفة"), jury_style_h), Paragraph(reshape_arabic("الاسم واللقب"), jury_style_h)],
+        [Paragraph(reshape_arabic("رئيساً"), jury_style_c), Paragraph(reshape_arabic(president_name or "........................................"), jury_style_c)],
+        [Paragraph(reshape_arabic("مشرفاً ومقرراً"), jury_style_c), Paragraph(reshape_arabic(teacher_name), jury_style_c)],
+        [Paragraph(reshape_arabic("ممتحناً"), jury_style_c), Paragraph(reshape_arabic(examiner_name or "........................................"), jury_style_c)],
+    ]
+    jury_table = Table(jury_data, colWidths=[140, 380])
+    jury_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
+        ('GRID', (0, 0), (-1, -1), 0.8, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    jw, jh = jury_table.wrap(page_width - 80, page_height)
+    jury_y = page_height - 185 - jh
+    jury_table.drawOn(can, 45, jury_y)
 
-    for word in words:
-        test_line = " ".join(current_line + [word])
-        # قياس عرض السطر قبل طباعته
-        if can.stringWidth(reshape_arabic(test_line), ARABIC_FONT_BOLD, 15) <= max_title_width:
-            current_line.append(word)
-        else:
-            if current_line:
-                lines.append(" ".join(current_line))
-            current_line = [word]
-    if current_line:
-        lines.append(" ".join(current_line))
-
-    # حساب الارتفاع الديناميكي للإطار
-    line_height = 24
-    padding_v = 12
-    box_height = max(50, (len(lines) * line_height) + (padding_v * 2))
-    box_top_y = page_height - 245
-    rect_y = box_top_y - box_height
-
-    # رسم مستطيل العنوان
-    can.setLineWidth(1.5)
-    can.rect(40, rect_y, page_width - 80, box_height)
-
-    # طباعة أسطر العنوان بالتوسيط والربط العربي الصحيح
-    start_y = box_top_y - padding_v - 16
-    for i, line_txt in enumerate(lines):
-        y_pos = start_y - (i * line_height)
-        can.drawCentredString(center_x, y_pos, reshape_arabic(line_txt))
-
-    # 3. تعديل موقع بيانات الطلبة أسفل الإطار مباشرة
-    y_st = rect_y - 35
+    # عنوان المذكرة
+    title_y_label = jury_y - 22
     can.setFont(ARABIC_FONT_BOLD, 12)
-    
-    s1_ar = str(st1_ar).strip() if st1_ar else ""
-    s1_fr = str(st1_fr).strip() if st1_fr else ""
-    r1_clean = str(st1_reg).strip() if st1_reg else ""
-    
-    str_st1_ar = f"الطالب الأول (بالعربية): {s1_ar}"
-    str_st1_fr = f"Nom et Prénom (Français): {s1_fr}" + (f"  |  N° Inscription: {r1_clean}" if r1_clean else "")
-    
-    can.drawCentredString(center_x, y_st, reshape_arabic(str_st1_ar))
-    can.drawCentredString(center_x, y_st - 20, str_st1_fr)
-    
-    s2_ar = str(st2_ar).strip() if st2_ar else ""
-    s2_fr = str(st2_fr).strip() if st2_fr else ""
-    r2_clean = str(st2_reg).strip() if st2_reg else ""
-    
-    if s2_ar and s2_ar.lower() not in ["", "---", "nan", "none", "null", "لا يوجد / خيار فردي"]:
-        str_st2_ar = f"الطالب الثاني (بالعربية): {s2_ar}"
-        str_st2_fr = f"Nom et Prénom (Français): {s2_fr}" + (f"  |  N° Inscription: {r2_clean}" if r2_clean else "")
-        can.drawCentredString(center_x, y_st - 48, reshape_arabic(str_st2_ar))
-        can.drawCentredString(center_x, y_st - 68, str_st2_fr)
-        y_sig = y_st - 125
+    can.drawRightString(page_width - 40, title_y_label, reshape_arabic("لمناقشة مذكرة الماستر الموسومة بـ:"))
+
+    formatted_title = format_multiline_arabic_for_paragraph(f"« {title} »", ARABIC_FONT_BOLD, 12, max_width=500)
+    t_para = Paragraph(formatted_title, ParagraphStyle('PVTitle', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_CENTER, leading=18))
+    tw, th = t_para.wrap(510, page_height)
+    box_h = max(36, th + 12)
+    box_y = title_y_label - 8 - box_h
+    can.setLineWidth(1)
+    can.rect(45, box_y, page_width - 90, box_h)
+    t_para.drawOn(can, 50, box_y + 6)
+
+    # بيانات الطلبة (شاملة تاريخ ومكان الميلاد)
+    st_y = box_y - 22
+    can.setFont(ARABIC_FONT_BOLD, 12)
+    can.drawRightString(page_width - 40, st_y, reshape_arabic("المعدة من طرف الطالب(ين):"))
+
+    st_cell_style = ParagraphStyle('StPV', fontName=ARABIC_FONT_BOLD, fontSize=10.5, alignment=TA_RIGHT, leading=15)
+    st_rows = []
+    if st1_info:
+        st_rows.append([Paragraph(format_multiline_arabic_for_paragraph(f"• الطالب الأول: {st1_info}", ARABIC_FONT_BOLD, 10.5, 505), st_cell_style)])
+    if st2_info and st2_info.lower() not in ["", "---", "nan", "none", "لا يوجد / خيار فردي"]:
+        st_rows.append([Paragraph(format_multiline_arabic_for_paragraph(f"• الطالب الثاني: {st2_info}", ARABIC_FONT_BOLD, 10.5, 505), st_cell_style)])
+
+    if st_rows:
+        st_table = Table(st_rows, colWidths=[520])
+        st_table.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.6, colors.grey),
+            ('INNERGRID', (0, 0), (-1, -1), 0.4, colors.lightgrey),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        sw, sh = st_table.wrap(520, page_height)
+        st_table_y = st_y - 8 - sh
+        st_table.drawOn(can, 45, st_table_y)
     else:
-        y_sig = y_st - 85
+        st_table_y = st_y - 20
 
-    # 4. التواقيع أسفل الصفحة
-    can.setFont(ARABIC_FONT_BOLD, 13)
-    can.drawCentredString(page_width - 120, y_sig, reshape_arabic("توقيع المشرف (QR Code)"))
-    can.drawCentredString(120, y_sig, reshape_arabic("توقيع مسؤول الشعبة"))
-
-    qr_buf = generate_qr_code_image(qr_code_str)
-    can.drawImage(ImageReader(qr_buf), page_width - 160, y_sig - 100, width=85, height=85)
-
-    sign_file = "sign2.png" if "لسانيات" in str(specialty) else "sign3.png"
-    sign_b = get_github_file_bytes(sign_file)
-    if sign_b:
-        try: can.drawImage(ImageReader(BytesIO(sign_b)), 35, y_sig - 115, width=170, height=85, mask='auto')
-        except Exception: pass
-
+    # قرار اللجنة والتنقيط
+    dec_y = st_table_y - 24
     can.setFont(ARABIC_FONT_BOLD, 12)
-    can.drawCentredString(center_x, 35, reshape_arabic("السنة الجامعية: 2026-2027"))
+    can.drawRightString(page_width - 40, dec_y, reshape_arabic("وبعد المداولة السرية، قررت اللجنة منح الطالب(ين) العلامة النهائية:  ....... / 20   بتقدير: ............................"))
+
+    # توقيعات أعضاء اللجنة في الأسفل
+    sig_y = 115
+    can.setFont(ARABIC_FONT_BOLD, 12)
+    can.drawCentredString(page_width - 110, sig_y, reshape_arabic("رئيس اللجنة"))
+    can.drawCentredString(center_x, sig_y, reshape_arabic("المشرف المقرر"))
+    can.drawCentredString(110, sig_y, reshape_arabic("الممتحن"))
+
+    can.setFont(ARABIC_FONT, 10)
+    can.drawCentredString(page_width - 110, sig_y - 16, reshape_arabic(president_name))
+    can.drawCentredString(center_x, sig_y - 16, reshape_arabic(teacher_name))
+    can.drawCentredString(110, sig_y - 16, reshape_arabic(examiner_name))
 
     can.save()
     packet.seek(0)
-    return packet.getvalue()    
-
+    return packet.getvalue()
 def generate_qr_code_image(data_text):
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=6, border=2)
     qr.add_data(data_text)
@@ -1339,8 +1251,8 @@ with tab_teacher:
                 st.session_state.pv_unlocked = False
 
             if not st.session_state.pv_unlocked:
-                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (لم يتم فتح النافذة):", type="password", key="inp_pv_pass_v95")
-                if st.button("تفعيل الدخول لمحضر المناقشة 🚀", key="btn_pv_unlock_v95"):
+                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (PV2027):", type="password", key="inp_pv_pass_v100")
+                if st.button("تفعيل الدخول لمحضر المناقشة 🚀", key="btn_pv_unlock_v100"):
                     if pv_pass_input == PV_UNLOCK_PASS or pv_pass_input == MASTER_SUPER_PASS:
                         st.session_state.pv_unlocked = True
                         st.toast("🔓 تم تفعيل لسان محضر المناقشة بنجاح!")
@@ -1349,6 +1261,10 @@ with tab_teacher:
                         st.error("❌ كود الدخول غير صحيح!")
             else:
                 df_final_all = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
+                df_teachers_pv = load_data_from_sheet(SHEET_TEACHERS)
+                t_name_col_pv = [c for c in df_teachers_pv.columns if "الاسم" in c or "اللقب" in c][0] if not df_teachers_pv.empty else "اسم الأستاذ"
+                all_teachers_list_pv = df_teachers_pv[t_name_col_pv].dropna().astype(str).str.strip().unique().tolist() if not df_teachers_pv.empty else []
+
                 if not df_final_all.empty:
                     t_col_name = [c for c in df_final_all.columns if "أستاذ" in c or "استاذ" in c]
                     if t_col_name:
@@ -1360,7 +1276,7 @@ with tab_teacher:
                                 t_title = extract_title_from_row(r)
                                 pv_dropdown_opts.append(f"{c_code} - {t_title}" if c_code else t_title)
 
-                            selected_pv_memo = st.selectbox("اختر المذكرة المعنية من المذكرات المشرف عليها:", ["-- اختر المذكرة --"] + pv_dropdown_opts, key="sb_pv_memo_v95")
+                            selected_pv_memo = st.selectbox("اختر المذكرة المعنية من المذكرات المشرف عليها:", ["-- اختر المذكرة --"] + pv_dropdown_opts, key="sb_pv_memo_v100")
                             
                             if selected_pv_memo != "-- اختر المذكرة --":
                                 form_code_pv = selected_pv_memo.split(" - ")[0].strip() if " - " in selected_pv_memo else selected_pv_memo
@@ -1374,41 +1290,71 @@ with tab_teacher:
                                 if target_pv_row is not None:
                                     memo_spec = extract_spec_from_row(target_pv_row)
                                     memo_title = extract_title_from_row(target_pv_row)
-                                    st1_full_disp, st2_full_disp, _, _, _, _ = extract_students_data_from_row(target_pv_row)
+                                    st1_full_disp, st2_full_disp, _, r1_v, _, r2_v = extract_students_data_from_row(target_pv_row)
+
+                                    # استخراج تاريخ ومكان الميلاد من شيت الطلبة
+                                    dob1, pob1 = get_student_birth_info(r1_v, memo_spec)
+                                    birth1_txt = f" — المولود(ة) بتاريخ: {dob1} بـ: {pob1}" if (dob1 or pob1) else ""
+                                    st1_with_birth = f"{st1_full_disp}{birth1_txt}" if st1_full_disp else "غير مدخل"
+
+                                    st2_with_birth = "لا يوجد / خيار فردي"
+                                    if st2_full_disp and st2_full_disp.lower() not in ["", "---", "nan", "none", "لا يوجد / خيار فردي"]:
+                                        dob2, pob2 = get_student_birth_info(r2_v, memo_spec)
+                                        birth2_txt = f" — المولود(ة) بتاريخ: {dob2} بـ: {pob2}" if (dob2 or pob2) else ""
+                                        st2_with_birth = f"{st2_full_disp}{birth2_txt}"
 
                                     st.markdown("---")
-                                    st.markdown("### 📋 بيانات المذكرة:")
-                                    
+                                    st.markdown("### 📋 بيانات المذكرة والطلبة:")
                                     pv_summary_df = pd.DataFrame([{
                                         "اسم المشرف": teacher_curr,
                                         "التخصص": memo_spec,
                                         "عنوان المذكرة": memo_title,
-                                        "الطالب الأول (باللغتين ورقم التسجيل)": st1_full_disp if st1_full_disp else "غير مدخل",
-                                        "الطالب الثاني (باللغتين ورقم التسجيل)": st2_full_disp if st2_full_disp else "لا يوجد / خيار فردي"
+                                        "الطالب الأول (مع تاريخ ومكان الميلاد)": st1_with_birth,
+                                        "الطالب الثاني (مع تاريخ ومكان الميلاد)": st2_with_birth
                                     }])
                                     st.table(pv_summary_df)
 
                                     st.markdown("---")
-                                    col_day, col_date = st.columns(2)
-                                    with col_day: pv_day = st.selectbox("اختر يوم المناقشة:", DAYS_OF_WEEK, key="sb_pv_day_v95")
-                                    with col_date: pv_date = st.date_input("تاريخ المناقشة الآلي:", value=datetime.now(), key="dt_pv_date_v95").strftime("%Y/%m/%d")
+                                    st.markdown("### 👨‍🏫 تشكيل لجنة المناقشة (قابل للتعديل والتحرير):")
+                                    
+                                    # استبعاد المشرف الحالي من قائمتي الرئيس والممتحن
+                                    jury_candidates = [t for t in all_teachers_list_pv if t != teacher_curr]
+                                    manual_opt = "✏️ إدخال / تحرير اسم أستاذ آخر يدوياً"
 
-                                    if st.button("📥 طباعة وإنشاء محضر المناقشة (PDF)", key="btn_gen_pv_pdf_v95"):
+                                    col_j1, col_j2 = st.columns(2)
+                                    with col_j1:
+                                        pres_sel = st.selectbox("1️⃣ اختر رئيس اللجنة:", ["-- اختر الرئيس --"] + jury_candidates + [manual_opt], key="sb_pv_pres_v100")
+                                        default_pres = "" if pres_sel in ["-- اختر الرئيس --", manual_opt] else pres_sel
+                                        president_final = st.text_input("تحرير / كتابة اسم رئيس اللجنة والرتبة:", value=default_pres, key="txt_pv_pres_edit_v100")
+
+                                    with col_j2:
+                                        exam_candidates = [t for t in jury_candidates if t != pres_sel]
+                                        exam_sel = st.selectbox("2️⃣ اختر الأستاذ الممتحن:", ["-- اختر الممتحن --"] + exam_candidates + [manual_opt], key="sb_pv_exam_v100")
+                                        default_exam = "" if exam_sel in ["-- اختر الممتحن --", manual_opt] else exam_sel
+                                        examiner_final = st.text_input("تحرير / كتابة اسم الممتحن والرتبة:", value=default_exam, key="txt_pv_exam_edit_v100")
+
+                                    st.markdown("---")
+                                    col_day, col_date = st.columns(2)
+                                    with col_day: pv_day = st.selectbox("اختر يوم المناقشة:", DAYS_OF_WEEK, key="sb_pv_day_v100")
+                                    with col_date: pv_date = st.date_input("تاريخ المناقشة الآلي:", value=datetime.now(), key="dt_pv_date_v100").strftime("%Y/%m/%d")
+
+                                    if st.button("📥 طباعة وإنشاء محضر المناقشة (PDF)", key="btn_gen_pv_pdf_v100"):
                                         pv_pdf_bytes = generate_pv_pdf_document(
                                             teacher_curr, memo_spec, memo_title,
-                                            st1_full_disp, st2_full_disp,
-                                            pv_day, pv_date
+                                            st1_with_birth, st2_with_birth,
+                                            pv_day, pv_date,
+                                            president_name=president_final.strip(),
+                                            examiner_name=examiner_final.strip()
                                         )
                                         st.download_button(
                                             label="🖨️ تحميل محضر المناقشة المعتمد (PDF)",
                                             data=pv_pdf_bytes,
                                             file_name=f"محضر_مناقشة_{teacher_curr}.pdf",
                                             mime="application/pdf",
-                                            key="btn_dl_pv_pdf_v95"
+                                            key="btn_dl_pv_pdf_v100"
                                         )
                         else:
-                            st.info("يرجى اختيار المذكرة لعرض معطياتها ومتابعة إنتاج المحضر.")
-
+                            st.info("لا توجد مذكرات مسجلة باسمك حالياً.")
     with t_sub_tab5:
         if not st.session_state.teacher_logged_in:
             st.info("⚠️ يرجى تسجيل الدخول أولاً من لسان 'الدخول إلى حسابي'.")
