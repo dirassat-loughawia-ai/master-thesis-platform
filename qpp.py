@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -441,6 +442,7 @@ def get_student_birth_info(matr_num, specialty="", student_full_disp=""):
     return "", ""
 # --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
 def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info, pv_day, pv_date, president_name="", examiner_name=""):
+    import re 
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
     page_width, page_height = letter
