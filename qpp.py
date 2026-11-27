@@ -571,7 +571,7 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
     # 4. قرار اللجنة والتنقيط
     dec_y = current_st_y - 18
     can.setFont(ARABIC_FONT_BOLD, 12)
-    can.drawRightString(page_width - 40, dec_y, reshape_arabic("وبعد المداولة السرية، قررت اللجنة منح الطالب(ين) العلامة النهائية:  ....... / 20   بتقدير: ............................"))
+    can.drawRightString(page_width - 40, dec_y, reshape_arabic("وبعد المداولة السرية، قررت اللجنة منح الطالب(ين) العلامة النهائية:  ................ / 20   بتقدير: ............................"))
 
     # 5. تقليل المسافة قبل توقيع أعضاء اللجنة (مباشرة أسفل سطر القرار)
     sig_y = max(185, dec_y - 30)
@@ -585,17 +585,16 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
     can.drawCentredString(center_x, sig_y - 16, reshape_arabic(teacher_name))
     can.drawCentredString(110, sig_y - 16, reshape_arabic(examiner_name))
 
-    # 6. إمضاء وختم رئيس القسم في أقصى اليسار بالأسفل
-    dept_head_y = max(105, sig_y - 75)
+# 6. إنزال إمضاء وختم رئيس القسم قليلاً في أقصى اليسار بالأسفل
+    dept_head_y = 82
     can.setFont(ARABIC_FONT_BOLD, 13)
     can.drawCentredString(110, dept_head_y, reshape_arabic("رئيس القسم"))
     sign1_b = get_github_file_bytes("sign1.png")
     if sign1_b:
         try:
-            can.drawImage(ImageReader(BytesIO(sign1_b)), 55, dept_head_y - 58, width=110, height=55, mask='auto')
+            can.drawImage(ImageReader(BytesIO(sign1_b)), 55, dept_head_y - 56, width=110, height=55, mask='auto')
         except Exception:
             pass
-
     can.save()
     packet.seek(0)
     return packet.getvalue()
