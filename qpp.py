@@ -391,12 +391,15 @@ def render_page_header_first_only(can, doc):
     draw_header_icons(can, page_width, page_height)
 def get_student_birth_info(matr_num, specialty="", student_full_disp=""):
     """البحث المزدوج عن تاريخ ومكان ميلاد الطالب: أولاً برقم التسجيل ثم باسم الطالب"""
+    def _clean_m(val):
+        s = str(val).strip()
+        return s[:-2] if s.endswith(".0") else s
+
     df_students = load_data_from_sheet(SHEET_STUDENTS)
     if df_students.empty:
         return "", ""
 
-    matr_clean = clean_matr_str(matr_num)
-    # استخراج الاسم العربي الصافي من النص المعروض كخيار بحث ثانٍ مؤكد
+    matr_clean = _clean_m(matr_num)
     ar_name_clean = str(student_full_disp).split("|")[0].split("(")[0].strip()
 
     suffix = SPEC_SUFFIX_MAP.get(specialty, "")
@@ -418,7 +421,7 @@ def get_student_birth_info(matr_num, specialty="", student_full_disp=""):
 
         # 1. البحث برقم التسجيل
         if matr_clean and matr_clean.lower() not in ["", "nan", "none"]:
-            m_df = df_students[df_students[m_col].apply(clean_matr_str) == matr_clean]
+            m_df = df_students[df_students[m_col].apply(_clean_m) == matr_clean]
             if not m_df.empty:
                 matched_row = m_df.iloc[0]
 
