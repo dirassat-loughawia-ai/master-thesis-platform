@@ -1328,37 +1328,43 @@ with tab_teacher:
 
                                     col_j1, col_j2 = st.columns(2)
                                     with col_j1:
-                                        pres_sel = st.selectbox("1️⃣ اختر رئيس اللجنة:", ["-- اختر الرئيس --"] + jury_candidates + [manual_opt], key="sb_pv_pres_v100")
+                                        pres_sel = st.selectbox("1️⃣ اختر رئيس اللجنة:", ["-- اختر الرئيس --"] + jury_candidates + [manual_opt], key="sb_pv_pres_v101")
                                         default_pres = "" if pres_sel in ["-- اختر الرئيس --", manual_opt] else pres_sel
-                                        president_final = st.text_input("تحرير / كتابة اسم رئيس اللجنة والرتبة:", value=default_pres, key="txt_pv_pres_edit_v100")
+                                        # ربط الـ key بـ pres_sel يجبر الحقل على التحديث الفوري عند اختيار أي أستاذ
+                                        president_final = st.text_input("تحرير / كتابة اسم رئيس اللجنة والرتبة:", value=default_pres, key=f"txt_pv_pres_{pres_sel}")
 
                                     with col_j2:
                                         exam_candidates = [t for t in jury_candidates if t != pres_sel]
-                                        exam_sel = st.selectbox("2️⃣ اختر الأستاذ الممتحن:", ["-- اختر الممتحن --"] + exam_candidates + [manual_opt], key="sb_pv_exam_v100")
+                                        exam_sel = st.selectbox("2️⃣ اختر الأستاذ الممتحن:", ["-- اختر الممتحن --"] + exam_candidates + [manual_opt], key="sb_pv_exam_v101")
                                         default_exam = "" if exam_sel in ["-- اختر الممتحن --", manual_opt] else exam_sel
-                                        examiner_final = st.text_input("تحرير / كتابة اسم الممتحن والرتبة:", value=default_exam, key="txt_pv_exam_edit_v100")
+                                        # ربط الـ key بـ exam_sel يجبر الحقل على التحديث الفوري عند اختيار أي أستاذ
+                                        examiner_final = st.text_input("تحرير / كتابة اسم الممتحن والرتبة:", value=default_exam, key=f"txt_pv_exam_{exam_sel}")
 
                                     st.markdown("---")
                                     col_day, col_date = st.columns(2)
-                                    with col_day: pv_day = st.selectbox("اختر يوم المناقشة:", DAYS_OF_WEEK, key="sb_pv_day_v100")
-                                    with col_date: pv_date = st.date_input("تاريخ المناقشة الآلي:", value=datetime.now(), key="dt_pv_date_v100").strftime("%Y/%m/%d")
+                                    with col_day: pv_day = st.selectbox("اختر يوم المناقشة:", DAYS_OF_WEEK, key="sb_pv_day_v101")
+                                    with col_date: pv_date = st.date_input("تاريخ المناقشة الآلي:", value=datetime.now(), key="dt_pv_date_v101").strftime("%Y/%m/%d")
 
-                                    if st.button("📥 طباعة وإنشاء محضر المناقشة (PDF)", key="btn_gen_pv_pdf_v100"):
+                                    if st.button("📥 طباعة وإنشاء محضر المناقشة (PDF)", key="btn_gen_pv_pdf_v101"):
+                                        # الاعتماد على النص المحرر، أو الاسم المختار مباشرة كاحتياط
+                                        final_pres_name = president_final.strip() if president_final.strip() else default_pres
+                                        final_exam_name = examiner_final.strip() if examiner_final.strip() else default_exam
+
                                         pv_pdf_bytes = generate_pv_pdf_document(
                                             teacher_curr, memo_spec, memo_title,
                                             st1_with_birth, st2_with_birth,
                                             pv_day, pv_date,
-                                            president_name=president_final.strip(),
-                                            examiner_name=examiner_final.strip()
+                                            president_name=final_pres_name,
+                                            examiner_name=final_exam_name
                                         )
                                         st.download_button(
                                             label="🖨️ تحميل محضر المناقشة المعتمد (PDF)",
                                             data=pv_pdf_bytes,
                                             file_name=f"محضر_مناقشة_{teacher_curr}.pdf",
                                             mime="application/pdf",
-                                            key="btn_dl_pv_pdf_v100"
-                                        )
-                        else:
+                                            key="btn_dl_pv_pdf_v101"
+                                        )                        
+                                    else:
                             st.info("لا توجد مذكرات مسجلة باسمك حالياً.")
     with t_sub_tab5:
         if not st.session_state.teacher_logged_in:
