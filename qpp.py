@@ -1256,8 +1256,8 @@ with tab_teacher:
                 st.session_state.pv_unlocked = False
 
             if not st.session_state.pv_unlocked:
-                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (PV2027):", type="password", key="inp_pv_pass_v100")
-                if st.button("تفعيل الدخول لمحضر المناقشة 🚀", key="btn_pv_unlock_v100"):
+                pv_pass_input = st.text_input("🔑 أدخل كود الدخول الخاص بمحضر المناقشة (PV2027):", type="password", key="inp_pv_pass_v101")
+                if st.button("تفعيل الدخول لمحضر المناقشة 🚀", key="btn_pv_unlock_v101"):
                     if pv_pass_input == PV_UNLOCK_PASS or pv_pass_input == MASTER_SUPER_PASS:
                         st.session_state.pv_unlocked = True
                         st.toast("🔓 تم تفعيل لسان محضر المناقشة بنجاح!")
@@ -1281,7 +1281,7 @@ with tab_teacher:
                                 t_title = extract_title_from_row(r)
                                 pv_dropdown_opts.append(f"{c_code} - {t_title}" if c_code else t_title)
 
-                            selected_pv_memo = st.selectbox("اختر المذكرة المعنية من المذكرات المشرف عليها:", ["-- اختر المذكرة --"] + pv_dropdown_opts, key="sb_pv_memo_v100")
+                            selected_pv_memo = st.selectbox("اختر المذكرة المعنية من المذكرات المشرف عليها:", ["-- اختر المذكرة --"] + pv_dropdown_opts, key="sb_pv_memo_v101")
                             
                             if selected_pv_memo != "-- اختر المذكرة --":
                                 form_code_pv = selected_pv_memo.split(" - ")[0].strip() if " - " in selected_pv_memo else selected_pv_memo
@@ -1297,7 +1297,6 @@ with tab_teacher:
                                     memo_title = extract_title_from_row(target_pv_row)
                                     st1_full_disp, st2_full_disp, _, r1_v, _, r2_v = extract_students_data_from_row(target_pv_row)
 
-                                    # استخراج تاريخ ومكان الميلاد من شيت الطلبة
                                     dob1, pob1 = get_student_birth_info(r1_v, memo_spec)
                                     birth1_txt = f" — المولود(ة) بتاريخ: {dob1} بـ: {pob1}" if (dob1 or pob1) else ""
                                     st1_with_birth = f"{st1_full_disp}{birth1_txt}" if st1_full_disp else "غير مدخل"
@@ -1322,7 +1321,6 @@ with tab_teacher:
                                     st.markdown("---")
                                     st.markdown("### 👨‍🏫 تشكيل لجنة المناقشة (قابل للتعديل والتحرير):")
                                     
-                                    # استبعاد المشرف الحالي من قائمتي الرئيس والممتحن
                                     jury_candidates = [t for t in all_teachers_list_pv if t != teacher_curr]
                                     manual_opt = "✏️ إدخال / تحرير اسم أستاذ آخر يدوياً"
 
@@ -1330,14 +1328,12 @@ with tab_teacher:
                                     with col_j1:
                                         pres_sel = st.selectbox("1️⃣ اختر رئيس اللجنة:", ["-- اختر الرئيس --"] + jury_candidates + [manual_opt], key="sb_pv_pres_v101")
                                         default_pres = "" if pres_sel in ["-- اختر الرئيس --", manual_opt] else pres_sel
-                                        # ربط الـ key بـ pres_sel يجبر الحقل على التحديث الفوري عند اختيار أي أستاذ
                                         president_final = st.text_input("تحرير / كتابة اسم رئيس اللجنة والرتبة:", value=default_pres, key=f"txt_pv_pres_{pres_sel}")
 
                                     with col_j2:
                                         exam_candidates = [t for t in jury_candidates if t != pres_sel]
                                         exam_sel = st.selectbox("2️⃣ اختر الأستاذ الممتحن:", ["-- اختر الممتحن --"] + exam_candidates + [manual_opt], key="sb_pv_exam_v101")
                                         default_exam = "" if exam_sel in ["-- اختر الممتحن --", manual_opt] else exam_sel
-                                        # ربط الـ key بـ exam_sel يجبر الحقل على التحديث الفوري عند اختيار أي أستاذ
                                         examiner_final = st.text_input("تحرير / كتابة اسم الممتحن والرتبة:", value=default_exam, key=f"txt_pv_exam_{exam_sel}")
 
                                     st.markdown("---")
@@ -1346,7 +1342,6 @@ with tab_teacher:
                                     with col_date: pv_date = st.date_input("تاريخ المناقشة الآلي:", value=datetime.now(), key="dt_pv_date_v101").strftime("%Y/%m/%d")
 
                                     if st.button("📥 طباعة وإنشاء محضر المناقشة (PDF)", key="btn_gen_pv_pdf_v101"):
-                                        # الاعتماد على النص المحرر، أو الاسم المختار مباشرة كاحتياط
                                         final_pres_name = president_final.strip() if president_final.strip() else default_pres
                                         final_exam_name = examiner_final.strip() if examiner_final.strip() else default_exam
 
@@ -1364,43 +1359,8 @@ with tab_teacher:
                                             mime="application/pdf",
                                             key="btn_dl_pv_pdf_v101"
                                         )
-    else:
-                            st.info("لا توجد مذكرات مسجلة باسمك حالياً.")
-    with t_sub_tab5:
-        if not st.session_state.teacher_logged_in:
-            st.info("⚠️ يرجى تسجيل الدخول أولاً من لسان 'الدخول إلى حسابي'.")
-        else:
-            teacher_curr = str(st.session_state.current_teacher).strip()
-            st.subheader("📜 استخراج إفادة تأطير مذكرات الماستر")
-
-            if not st.session_state.get("attest_unlocked", False):
-                attest_pass_input = st.text_input("أدخل كلمة المرور الخاصة بإفادة التأطير:", type="password", key="inp_attest_pass_v99")
-
-                if st.button("🔑 تفعيل الدخول إلى إفادة التأطير", key="btn_enter_attestation_v99"):
-                    if attest_pass_input == ATTESTATION_PASS or attest_pass_input == MASTER_SUPER_PASS:
-                        st.session_state.attest_unlocked = True
-                        st.toast("🔓 تم تفعيل الدخول واستخراج الإفادة بنجاح!")
-                        st.rerun()
-                    else:
-                        st.error("❌ كلمة المرور غير صحيحة!")
-            else:
-                df_final_all = load_data_from_sheet(SHEET_FINAL_REGISTRATIONS)
-                if not df_final_all.empty:
-                    t_col_name = [c for c in df_final_all.columns if "أستاذ" in c or "استاذ" in c]
-                    if t_col_name:
-                        df_teacher_memos = df_final_all[df_final_all[t_col_name[0]].astype(str).str.strip() == teacher_curr].copy()
-                        if not df_teacher_memos.empty:
-                            st.success(f"✅ مرحباً أستاذنا ({teacher_curr})، إفادة التأطير جاهزة للتحميل أدناه:")
-                            pdf_attest_bytes = generate_supervision_attestation_pdf(teacher_curr, df_teacher_memos)
-                            st.download_button(
-                                label="📜 تحميل إفادة تأطير المذكرات (PDF)",
-                                data=pdf_attest_bytes,
-                                file_name=f"إفادة_تأطير_{teacher_curr}.pdf",
-                                mime="application/pdf",
-                                key="btn_dl_attestation_v99"
-                            )
                         else:
-                            st.info("لا توجد مذكرات مسجلة باسمك حالياً لإصدار الإفادة.")
+                            st.info("لا توجد مذكرات مسجلة باسمك حالياً.")
 # ==========================================
 # 2- فضاء مسؤولي التخصصات
 # ==========================================
