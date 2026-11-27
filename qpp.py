@@ -390,7 +390,7 @@ def render_page_header_first_only(can, doc):
     page_width, page_height = letter
     draw_header_icons(can, page_width, page_height)
 def get_student_birth_info(matr_num, specialty):
-    """البحث عن تاريخ ومكان ميلاد الطالب في شيت قوائم الطلبة باستخدام رقم التسجيل"""
+    """البحث عن تاريخ ومكان ميلاد الطالب في شيت قوائم الطلبة وفق نمط date_n_ و lieu_n_"""
     if not matr_num or str(matr_num).strip().lower() in ["", "nan", "none"]:
         return "", ""
     
@@ -401,10 +401,15 @@ def get_student_birth_info(matr_num, specialty):
     matr_clean = str(matr_num).strip()
     suffix = SPEC_SUFFIX_MAP.get(specialty, "")
     
-    # تحديد أعمدة رقم التسجيل وتاريخ ومكان الميلاد
-    matr_cols = [c for c in df_students.columns if f"matr{suffix}" in c] if suffix else [c for c in df_students.columns if "matr" in c.lower() or "تسجيل" in c]
-    dob_cols = [c for c in df_students.columns if (f"date{suffix}" in c.lower() or f"nais{suffix}" in c.lower() or "ميلاد" in c or "تاريخ" in c) and "مكان" not in c and "lieu" not in c.lower()]
-    pob_cols = [c for c in df_students.columns if f"lieu{suffix}" in c.lower() or "مكان" in c]
+    # مطابقة الأعمدة بدقة وفق اللاحقة (مثل _hadith أو _ling)
+    if suffix:
+        matr_cols = [c for c in df_students.columns if f"matr{suffix}" in c.lower()]
+        dob_cols = [c for c in df_students.columns if f"date_n{suffix}" in c.lower()]
+        pob_cols = [c for c in df_students.columns if f"lieu_n{suffix}" in c.lower()]
+    else:
+        matr_cols = [c for c in df_students.columns if "matr" in c.lower()]
+        dob_cols = [c for c in df_students.columns if "date_n" in c.lower()]
+        pob_cols = [c for c in df_students.columns if "lieu_n" in c.lower()]
 
     for m_col in matr_cols:
         matched = df_students[df_students[m_col].astype(str).str.strip() == matr_clean]
@@ -415,7 +420,7 @@ def get_student_birth_info(matr_num, specialty):
             return dob, pob
             
     return "", ""
-# --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
+    # --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
 def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info, pv_day, pv_date, president_name="", examiner_name=""):
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
