@@ -389,38 +389,54 @@ def draw_header_icons(can, page_width, page_height):
 def render_page_header_first_only(can, doc):
     page_width, page_height = letter
     draw_header_icons(can, page_width, page_height)
-def get_student_birth_info(matr_num, specialty):
-    """البحث عن تاريخ ومكان ميلاد الطالب في شيت قوائم الطلبة وفق نمط date_n_ و lieu_n_"""
-    if not matr_num or str(matr_num).strip().lower() in ["", "nan", "none"]:
-        return "", ""
-    
+def get_student_birth_info(matr_num, specialty="", student_full_disp=""):
+    """البحث المزدوج عن تاريخ ومكان ميلاد الطالب: أولاً برقم التسجيل ثم باسم الطالب"""
     df_students = load_data_from_sheet(SHEET_STUDENTS)
     if df_students.empty:
         return "", ""
-        
-    matr_clean = str(matr_num).strip()
+
+    matr_clean = clean_matr_str(matr_num)
+    # استخراج الاسم العربي الصافي من النص المعروض كخيار بحث ثانٍ مؤكد
+    ar_name_clean = str(student_full_disp).split("|")[0].split("(")[0].strip()
+
     suffix = SPEC_SUFFIX_MAP.get(specialty, "")
-    
-    # مطابقة الأعمدة بدقة وفق اللاحقة (مثل _hadith أو _ling)
+    all_matr_cols = [c for c in df_students.columns if "matr" in c.lower()]
     if suffix:
-        matr_cols = [c for c in df_students.columns if f"matr{suffix}" in c.lower()]
-        dob_cols = [c for c in df_students.columns if f"date_n{suffix}" in c.lower()]
-        pob_cols = [c for c in df_students.columns if f"lieu_n{suffix}" in c.lower()]
+        prioritized = [c for c in all_matr_cols if suffix.lower() in c.lower()]
+        matr_cols = prioritized + [c for c in all_matr_cols if c not in prioritized]
     else:
-        matr_cols = [c for c in df_students.columns if "matr" in c.lower()]
-        dob_cols = [c for c in df_students.columns if "date_n" in c.lower()]
-        pob_cols = [c for c in df_students.columns if "lieu_n" in c.lower()]
+        matr_cols = all_matr_cols
 
     for m_col in matr_cols:
-        matched = df_students[df_students[m_col].astype(str).str.strip() == matr_clean]
-        if not matched.empty:
-            row = matched.iloc[0]
-            dob = str(row[dob_cols[0]]).strip() if dob_cols and str(row[dob_cols[0]]).strip().lower() not in ["", "nan", "none"] else ""
-            pob = str(row[pob_cols[0]]).strip() if pob_cols and str(row[pob_cols[0]]).strip().lower() not in ["", "nan", "none"] else ""
+        col_suffix = m_col.lower().replace("matr", "")
+        dob_cols = [c for c in df_students.columns if f"date_n{col_suffix}" in c.lower()]
+        pob_cols = [c for c in df_students.columns if f"lieu_n{col_suffix}" in c.lower()]
+        nom_cols = [c for c in df_students.columns if f"nom{col_suffix}" in c.lower() and "fr" not in c.lower()]
+        prenom_cols = [c for c in df_students.columns if f"prenom{col_suffix}" in c.lower() and "fr" not in c.lower()]
+
+        matched_row = None
+
+        # 1. البحث برقم التسجيل
+        if matr_clean and matr_clean.lower() not in ["", "nan", "none"]:
+            m_df = df_students[df_students[m_col].apply(clean_matr_str) == matr_clean]
+            if not m_df.empty:
+                matched_row = m_df.iloc[0]
+
+        # 2. البحث بالاسم العربي الكامل كخيار احتياطي مؤكد
+        if matched_row is None and ar_name_clean and nom_cols and prenom_cols:
+            for _, r in df_students.iterrows():
+                full_ar = f"{str(r.get(nom_cols[0], '')).strip()} {str(r.get(prenom_cols[0], '')).strip()}".strip()
+                if full_ar and full_ar == ar_name_clean:
+                    matched_row = r
+                    break
+
+        if matched_row is not None:
+            dob = str(matched_row[dob_cols[0]]).strip() if dob_cols and str(matched_row[dob_cols[0]]).strip().lower() not in ["", "nan", "none"] else ""
+            pob = str(matched_row[pob_cols[0]]).strip() if pob_cols and str(matched_row[pob_cols[0]]).strip().lower() not in ["", "nan", "none"] else ""
             return dob, pob
-            
+
     return "", ""
-    # --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
+# --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
 def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info, pv_day, pv_date, president_name="", examiner_name=""):
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
@@ -459,12 +475,12 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
     jury_style_c = ParagraphStyle('JuryC', fontName=ARABIC_FONT_BOLD, fontSize=11, alignment=TA_CENTER)
 
     jury_data = [
-        [Paragraph(reshape_arabic("الصفة"), jury_style_h), Paragraph(reshape_arabic("الاسم واللقب"), jury_style_h)],
-        [Paragraph(reshape_arabic("رئيساً"), jury_style_c), Paragraph(reshape_arabic(president_name or "........................................"), jury_style_c)],
-        [Paragraph(reshape_arabic("مشرفاً ومقرراً"), jury_style_c), Paragraph(reshape_arabic(teacher_name), jury_style_c)],
-        [Paragraph(reshape_arabic("ممتحناً"), jury_style_c), Paragraph(reshape_arabic(examiner_name or "........................................"), jury_style_c)],
+        [Paragraph(reshape_arabic("الاسم واللقب"), jury_style_h), Paragraph(reshape_arabic("الصفة"), jury_style_h)],
+        [Paragraph(reshape_arabic(president_name or "........................................"), jury_style_c), Paragraph(reshape_arabic("رئيساً"), jury_style_c)],
+        [Paragraph(reshape_arabic(teacher_name), jury_style_c), Paragraph(reshape_arabic("مشرفاً ومقرراً"), jury_style_c)],
+        [Paragraph(reshape_arabic(examiner_name or "........................................"), jury_style_c), Paragraph(reshape_arabic("ممتحناً"), jury_style_c)],
     ]
-    jury_table = Table(jury_data, colWidths=[140, 380])
+    jury_table = Table(jury_data, colWidths=[380, 140])
     jury_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
         ('GRID', (0, 0), (-1, -1), 0.8, colors.black),
@@ -523,8 +539,8 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
     can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawRightString(page_width - 40, dec_y, reshape_arabic("وبعد المداولة السرية، قررت اللجنة منح الطالب(ين) العلامة النهائية:  ....... / 20   بتقدير: ............................"))
 
-    # توقيعات أعضاء اللجنة في الأسفل
-    sig_y = 115
+    # 1. رفع توقيعات أعضاء اللجنة بمعدل 4 أسطر (من 115 إلى 185)
+    sig_y = 185
     can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawCentredString(page_width - 110, sig_y, reshape_arabic("رئيس اللجنة"))
     can.drawCentredString(center_x, sig_y, reshape_arabic("المشرف المقرر"))
@@ -535,19 +551,20 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
     can.drawCentredString(center_x, sig_y - 16, reshape_arabic(teacher_name))
     can.drawCentredString(110, sig_y - 16, reshape_arabic(examiner_name))
 
+    # 2. إمضاء وختم رئيس القسم في أقصى اليسار بالأسفل (مكان الإمضاءات السابقة y = 105)
+    dept_head_y = 105
+    can.setFont(ARABIC_FONT_BOLD, 13)
+    can.drawCentredString(110, dept_head_y, reshape_arabic("رئيس القسم"))
+    sign1_b = get_github_file_bytes("sign1.png")
+    if sign1_b:
+        try:
+            can.drawImage(ImageReader(BytesIO(sign1_b)), 55, dept_head_y - 62, width=110, height=55, mask='auto')
+        except Exception:
+            pass
+
     can.save()
     packet.seek(0)
     return packet.getvalue()
-def generate_qr_code_image(data_text):
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=6, border=2)
-    qr.add_data(data_text)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
-
 def format_multiline_arabic_for_paragraph(text, font_name, font_size, max_width):
     """تقسيم النص العربي إلى أسطر مرتبة من الأعلى للأسفل دون انقلاب عند التفاف الفقرة"""
     raw = str(text).strip() if text else ""
@@ -1297,16 +1314,15 @@ with tab_teacher:
                                     memo_title = extract_title_from_row(target_pv_row)
                                     st1_full_disp, st2_full_disp, _, r1_v, _, r2_v = extract_students_data_from_row(target_pv_row)
 
-                                    dob1, pob1 = get_student_birth_info(r1_v, memo_spec)
+                                    dob1, pob1 = get_student_birth_info(r1_v, memo_spec, student_full_disp=st1_full_disp)
                                     birth1_txt = f" — المولود(ة) بتاريخ: {dob1} بـ: {pob1}" if (dob1 or pob1) else ""
                                     st1_with_birth = f"{st1_full_disp}{birth1_txt}" if st1_full_disp else "غير مدخل"
 
                                     st2_with_birth = "لا يوجد / خيار فردي"
                                     if st2_full_disp and st2_full_disp.lower() not in ["", "---", "nan", "none", "لا يوجد / خيار فردي"]:
-                                        dob2, pob2 = get_student_birth_info(r2_v, memo_spec)
+                                        dob2, pob2 = get_student_birth_info(r2_v, memo_spec, student_full_disp=st2_full_disp)
                                         birth2_txt = f" — المولود(ة) بتاريخ: {dob2} بـ: {pob2}" if (dob2 or pob2) else ""
                                         st2_with_birth = f"{st2_full_disp}{birth2_txt}"
-
                                     st.markdown("---")
                                     st.markdown("### 📋 بيانات المذكرة والطلبة:")
                                     pv_summary_df = pd.DataFrame([{
