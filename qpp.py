@@ -442,15 +442,23 @@ def get_student_birth_info(matr_num, specialty="", student_full_disp=""):
     return "", ""
 # --- 4. توليد محضر المناقشة (PV) بالخط الكبير والعنوان الضخم والسطرين الفارغين ---
 def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info, pv_day, pv_date, president_name="", examiner_name=""):
-    import re 
+    import re
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
     page_width, page_height = letter
     center_x = page_width / 2.0
 
-    # تنظيف أي فاصلة عشرية (.0) عالقة بأرقام التسجيل
-    st1_clean = re.sub(r'\.0\b', '', str(st1_info)).strip() if st1_info else ""
-    st2_clean = re.sub(r'\.0\b', '', str(st2_info)).strip() if st2_info else ""
+    def _clean_student_text(raw_txt):
+        if not raw_txt:
+            return ""
+        # 1. إزالة النقطة والصفر (.0) من أرقام التسجيل
+        txt = re.sub(r'\.0\b', '', str(raw_txt)).strip()
+        # 2. تحويل تاريخ الميلاد من DD/MM/YYYY أو DD-MM-YYYY إلى YYYY/MM/DD
+        txt = re.sub(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b', lambda m: f"{m.group(3)}/{m.group(2).zfill(2)}/{m.group(1).zfill(2)}", txt)
+        return txt
+
+    st1_clean = _clean_student_text(st1_info)
+    st2_clean = _clean_student_text(st2_info)
 
     # الإطار الخارجي والترويسة
     can.setLineWidth(2)
@@ -470,78 +478,86 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
     can.line(30, page_height - 98, page_width - 30, page_height - 98)
 
     can.setFont(ARABIC_FONT_BOLD, 20)
-    can.drawCentredString(center_x, page_height - 123, reshape_arabic("محضر مناقشة مذكرة ماستر"))
+    can.drawCentredString(center_x, page_height - 122, reshape_arabic("محضر مناقشة مذكرة ماستر"))
     can.setFont(ARABIC_FONT_BOLD, 12.5)
-    can.drawCentredString(center_x, page_height - 143, reshape_arabic(f"السنة الجامعية: 2026-2027  |  التخصص: {specialty}"))
+    can.drawCentredString(center_x, page_height - 141, reshape_arabic(f"السنة الجامعية: 2026-2027  |  التخصص: {specialty}"))
 
     # ديباجة المحضر
     can.setFont(ARABIC_FONT, 12)
     intro_line = f"في يوم {pv_day} الموافق لـ {pv_date}، اجتمعت لجنة المناقشة المعينة من طرف إدارة القسم والمكونة من:"
-    can.drawRightString(page_width - 40, page_height - 168, reshape_arabic(intro_line))
+    can.drawRightString(page_width - 40, page_height - 165, reshape_arabic(intro_line))
 
-    # 1. جدول لجنة المناقشة بلون أزرق بارد هادئ (#3b82f6)
+    # 1. جدول لجنة المناقشة: باللون الرمادي، والاسم واللقب على اليمين قبل الصفة، مع تقليل عرض عمود الاسم
     jury_style_h = ParagraphStyle('JuryH', fontName=ARABIC_FONT_BOLD, fontSize=11.5, alignment=TA_CENTER, textColor=colors.white)
     jury_style_c = ParagraphStyle('JuryC', fontName=ARABIC_FONT_BOLD, fontSize=11.5, alignment=TA_CENTER, textColor=colors.HexColor('#1e293b'))
 
+    # ترتيب الأعمدة في ReportLab: [العمود الأيسر (الصفة) | العمود الأيمن (الاسم واللقب)]
     jury_data = [
-        [Paragraph(reshape_arabic("الاسم واللقب"), jury_style_h), Paragraph(reshape_arabic("الصفة"), jury_style_h)],
-        [Paragraph(reshape_arabic(president_name or "........................................"), jury_style_c), Paragraph(reshape_arabic("رئيساً"), jury_style_c)],
-        [Paragraph(reshape_arabic(teacher_name), jury_style_c), Paragraph(reshape_arabic("مشرفاً ومقرراً"), jury_style_c)],
-        [Paragraph(reshape_arabic(examiner_name or "........................................"), jury_style_c), Paragraph(reshape_arabic("ممتحناً"), jury_style_c)],
+        [Paragraph(reshape_arabic("الصفة"), jury_style_h), Paragraph(reshape_arabic("الاسم واللقب"), jury_style_h)],
+        [Paragraph(reshape_arabic("رئيساً"), jury_style_c), Paragraph(reshape_arabic(president_name or ".................................."), jury_style_c)],
+        [Paragraph(reshape_arabic("مشرفاً ومقرراً"), jury_style_c), Paragraph(reshape_arabic(teacher_name), jury_style_c)],
+        [Paragraph(reshape_arabic("ممتحناً"), jury_style_c), Paragraph(reshape_arabic(examiner_name or ".................................."), jury_style_c)],
     ]
-    jury_table = Table(jury_data, colWidths=[380, 140])
+    jury_table = Table(jury_data, colWidths=[150, 280])
     jury_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),  # أزرق بارد
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8fafc'), colors.HexColor('#eff6ff')]),
-        ('GRID', (0, 0), (-1, -1), 0.7, colors.HexColor('#93c5fd')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#475569')),  # رمادي داكن للترويسة
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8fafc'), colors.HexColor('#f1f5f9')]),  # تظليل رمادي فاتح
+        ('GRID', (0, 0), (-1, -1), 0.7, colors.HexColor('#94a3b8')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
     jw, jh = jury_table.wrap(page_width - 80, page_height)
-    jury_y = page_height - 176 - jh
-    jury_table.drawOn(can, 45, jury_y)
+    jury_y = page_height - 172 - jh
+    jury_table.drawOn(can, (page_width - jw) / 2.0, jury_y)
 
-    # 2. عنوان المذكرة بحجم خط أكبر وبارز (14.5)
-    title_y_label = jury_y - 20
+    # 2. عنوان المذكرة بحجم خط بارز (14.5)
+    title_y_label = jury_y - 18
     can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawRightString(page_width - 40, title_y_label, reshape_arabic("لمناقشة مذكرة الماستر الموسومة بـ:"))
 
     formatted_title = format_multiline_arabic_for_paragraph(f"« {title} »", ARABIC_FONT_BOLD, 14.5, max_width=495)
-    t_para = Paragraph(formatted_title, ParagraphStyle('PVTitle', fontName=ARABIC_FONT_BOLD, fontSize=14.5, alignment=TA_CENTER, leading=22, textColor=colors.HexColor('#0f172a')))
+    t_para = Paragraph(formatted_title, ParagraphStyle('PVTitle', fontName=ARABIC_FONT_BOLD, fontSize=14.5, alignment=TA_CENTER, leading=21, textColor=colors.HexColor('#0f172a')))
     tw, th = t_para.wrap(505, page_height)
-    box_h = max(42, th + 14)
-    box_y = title_y_label - 8 - box_h
-    can.setStrokeColor(colors.HexColor('#3b82f6'))
+    box_h = max(40, th + 12)
+    box_y = title_y_label - 7 - box_h
+    can.setStrokeColor(colors.HexColor('#64748b'))
     can.setFillColor(colors.HexColor('#f8fafc'))
-    can.setLineWidth(1.2)
+    can.setLineWidth(1.1)
     can.roundRect(45, box_y, page_width - 90, box_h, 6, stroke=1, fill=1)
     can.setFillColor(colors.black)
     can.setStrokeColor(colors.black)
-    t_para.drawOn(can, 52, box_y + 7)
+    t_para.drawOn(can, 52, box_y + 6)
 
-    # 3. بيانات الطلبة: كل طالب مؤطّر في سطر/صندوق مستقل ومميز
-    st_y = box_y - 20
+    # 3. بيانات الطلبة: عنوان كل طالب في سطر لوحده، ثم بياناته في إطار مستقل بحجم خط أكبر (12)
+    st_y = box_y - 18
     can.setFont(ARABIC_FONT_BOLD, 12)
-    can.drawRightString(page_width - 40, st_y, reshape_arabic("المعدة من طرف الطالب(ين):"))
+    can.drawRightString(page_width - 40, st_y, reshape_arabic("المعدة من طرف:"))
 
-    st_cell_style = ParagraphStyle('StPV', fontName=ARABIC_FONT_BOLD, fontSize=10.5, alignment=TA_RIGHT, leading=16, textColor=colors.HexColor('#0f172a'))
-    current_st_y = st_y - 8
+    st_cell_style = ParagraphStyle('StPV', fontName=ARABIC_FONT_BOLD, fontSize=12, alignment=TA_RIGHT, leading=18, textColor=colors.HexColor('#0f172a'))
+    current_st_y = st_y - 6
 
-    students_boxes = []
+    students_entries = []
     if st1_clean:
-        students_boxes.append(f"• الطالب الأول: {st1_clean}")
+        students_entries.append(("الطالب الأول:", st1_clean))
     if st2_clean and st2_clean.lower() not in ["", "---", "nan", "none", "لا يوجد / خيار فردي"]:
-        students_boxes.append(f"• الطالب الثاني: {st2_clean}")
+        students_entries.append(("الطالب الثاني:", st2_clean))
 
-    for st_txt in students_boxes:
+    for label_st, st_txt in students_entries:
+        # سطر مستقل لعنوان الطالب (الطالب الأول: / الطالب الثاني:)
+        current_st_y -= 14
+        can.setFont(ARABIC_FONT_BOLD, 12)
+        can.drawRightString(page_width - 45, current_st_y, reshape_arabic(label_st))
+        current_st_y -= 5
+
+        # إطار مستقل لبيانات الطالب بحجم خط أكبر
         single_st_table = Table(
-            [[Paragraph(format_multiline_arabic_for_paragraph(st_txt, ARABIC_FONT_BOLD, 10.5, 502), st_cell_style)]],
+            [[Paragraph(format_multiline_arabic_for_paragraph(st_txt, ARABIC_FONT_BOLD, 12, 500), st_cell_style)]],
             colWidths=[520]
         )
         single_st_table.setStyle(TableStyle([
-            ('BOX', (0, 0), (-1, -1), 0.9, colors.HexColor('#60a5fa')),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#eff6ff')),
+            ('BOX', (0, 0), (-1, -1), 0.9, colors.HexColor('#94a3b8')),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 10),
@@ -550,15 +566,15 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
         sw, sh = single_st_table.wrap(520, page_height)
         current_st_y -= sh
         single_st_table.drawOn(can, 45, current_st_y)
-        current_st_y -= 6  # مسافة فاصلة مستقلة بين إطار الطالب الأول وإطار الطالب الثاني
+        current_st_y -= 4
 
-    # قرار اللجنة والتنقيط
+    # 4. قرار اللجنة والتنقيط
     dec_y = current_st_y - 18
     can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawRightString(page_width - 40, dec_y, reshape_arabic("وبعد المداولة السرية، قررت اللجنة منح الطالب(ين) العلامة النهائية:  ....... / 20   بتقدير: ............................"))
 
-    # 4. تصعيد توقيعات أعضاء اللجنة (رئيس اللجنة - المشرف - الممتحن)
-    sig_y = 220
+    # 5. تقليل المسافة قبل توقيع أعضاء اللجنة (مباشرة أسفل سطر القرار)
+    sig_y = max(185, dec_y - 30)
     can.setFont(ARABIC_FONT_BOLD, 12)
     can.drawCentredString(page_width - 110, sig_y, reshape_arabic("رئيس اللجنة"))
     can.drawCentredString(center_x, sig_y, reshape_arabic("المشرف المقرر"))
@@ -569,14 +585,14 @@ def generate_pv_pdf_document(teacher_name, specialty, title, st1_info, st2_info,
     can.drawCentredString(center_x, sig_y - 16, reshape_arabic(teacher_name))
     can.drawCentredString(110, sig_y - 16, reshape_arabic(examiner_name))
 
-    # 5. تصعيد إمضاء وختم رئيس القسم في أقصى اليسار بالأسفل
-    dept_head_y = 135
+    # 6. إمضاء وختم رئيس القسم في أقصى اليسار بالأسفل
+    dept_head_y = max(105, sig_y - 75)
     can.setFont(ARABIC_FONT_BOLD, 13)
     can.drawCentredString(110, dept_head_y, reshape_arabic("رئيس القسم"))
     sign1_b = get_github_file_bytes("sign1.png")
     if sign1_b:
         try:
-            can.drawImage(ImageReader(BytesIO(sign1_b)), 55, dept_head_y - 60, width=110, height=55, mask='auto')
+            can.drawImage(ImageReader(BytesIO(sign1_b)), 55, dept_head_y - 58, width=110, height=55, mask='auto')
         except Exception:
             pass
 
