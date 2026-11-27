@@ -1364,7 +1364,7 @@ with tab_teacher:
                                             mime="application/pdf",
                                             key="btn_dl_pv_pdf_v101"
                                         )                        
-                                    else:
+    else:
                             st.info("لا توجد مذكرات مسجلة باسمك حالياً.")
     with t_sub_tab5:
         if not st.session_state.teacher_logged_in:
