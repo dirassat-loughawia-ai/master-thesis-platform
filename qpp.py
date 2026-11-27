@@ -1363,7 +1363,7 @@ with tab_teacher:
                                             file_name=f"محضر_مناقشة_{teacher_curr}.pdf",
                                             mime="application/pdf",
                                             key="btn_dl_pv_pdf_v101"
-                                        )                        
+                                        )
     else:
                             st.info("لا توجد مذكرات مسجلة باسمك حالياً.")
     with t_sub_tab5:
